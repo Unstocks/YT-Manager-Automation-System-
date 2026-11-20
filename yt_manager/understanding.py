@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field
@@ -16,6 +18,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .inspector import MediaInspection
+
+logger = logging.getLogger("YTManager.Understanding")
 
 
 @dataclass
@@ -101,22 +105,53 @@ class VideoUnderstandingEngine:
             },
         }
 
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
+        req_data = json.dumps(payload).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
 
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                candidates = data.get("candidates", [])
-                if candidates:
-                    content_text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                    return json.loads(content_text)
-        except Exception:
-            return None
+        # Attempt call with 1 retry on transient errors
+        max_attempts = 2
+        for attempt in range(1, max_attempts + 1):
+            req = urllib.request.Request(
+                url,
+                data=req_data,
+                headers=headers,
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    resp_bytes = resp.read()
+                    data = json.loads(resp_bytes.decode("utf-8"))
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        content_text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                        return json.loads(content_text)
+                    logger.warning("Gemini Vision returned empty candidates list. Falling back to local analysis.")
+                    return None
+            except urllib.error.HTTPError as he:
+                is_transient = he.code in (429, 500, 502, 503, 504)
+                if is_transient and attempt < max_attempts:
+                    logger.warning(
+                        f"Gemini API returned transient HTTP {he.code}: {he.reason}. "
+                        f"Retrying in 2 seconds (attempt {attempt}/{max_attempts})..."
+                    )
+                    time.sleep(2)
+                    continue
+                logger.warning(f"Gemini API HTTP error {he.code}: {he.reason}. Falling back to local analysis.")
+                return None
+            except (urllib.error.URLError, TimeoutError) as ue:
+                if attempt < max_attempts:
+                    logger.warning(
+                        f"Gemini API network/timeout error: {ue}. "
+                        f"Retrying in 2 seconds (attempt {attempt}/{max_attempts})..."
+                    )
+                    time.sleep(2)
+                    continue
+                logger.warning(f"Gemini API network error after retry: {ue}. Falling back to local analysis.")
+                return None
+            except json.JSONDecodeError as je:
+                logger.warning(f"Gemini API returned invalid JSON: {je}. Falling back to local analysis.")
+                return None
+
         return None
 
     def _check_sidecar_context(self, video_path: Path) -> Optional[Dict[str, Any]]:
@@ -228,24 +263,19 @@ CRITICAL ACCURACY RULE: Do NOT invent claims, numbers, facts, or quotes not visi
                 )
 
         # 3. Deterministic Local Fallback (Strictly Factual & Content-Grounded)
-        # Avoids fabricating quotes or numbers not established in the file.
+        # Avoids fabricating claims or numbers not established in the file.
         format_str = "YouTube Shorts (9:16 vertical)" if inspection.is_short else "Standard Landscape (16:9)"
         audio_str = f"with {inspection.audio_codec} audio" if inspection.has_audio else "silent video"
         
         summary = (
-            f"Original video clip '{filename}' ({inspection.duration_seconds:.1f}s, {inspection.width}x{inspection.height}, "
-            f"{format_str}, {audio_str}). Focuses on {topic_from_name.lower()}."
+            f"Video clip '{filename}' ({inspection.duration_seconds:.1f}s, {inspection.width}x{inspection.height}, "
+            f"{format_str}, {audio_str}). Topic: {topic_from_name}."
         )
 
-        takeaway = (
-            f"High-impact demonstration of {topic_from_name.lower()} "
-            f"engineered for durable software architecture and technical decision-making."
-        )
+        takeaway = f"Overview of {topic_from_name}."
 
         entities = [
             topic_from_name,
-            "Software Architecture",
-            "Technical Decision Making",
             "Unstocks",
         ]
 
@@ -257,12 +287,12 @@ CRITICAL ACCURACY RULE: Do NOT invent claims, numbers, facts, or quotes not visi
             on_screen_text=[],
             spoken_dialogue="",
             entities=entities,
-            intended_audience="Software Engineers, Founders, Systems Architects",
+            intended_audience="General Audience, Tech Enthusiasts",
             main_takeaway=takeaway,
             category_id=cat_id,
             category_name="Education" if cat_id == "27" else "Science & Technology",
             language="en",
             is_short=inspection.is_short,
-            confidence=0.85,
+            confidence=0.7,
             summary=summary,
         )

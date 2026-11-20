@@ -95,6 +95,86 @@ class TestSEOMetadataGenerator(unittest.TestCase):
         self.assertEqual(metadata.category_id, "28")
         self.assertIn("redis", metadata.tags)
 
+    def test_dynamic_title_generation_no_hardcoded_templates(self):
+        # 1. Shorts video with dialogue
+        u1 = ContentUnderstanding(
+            subject="Neural Network Optimization",
+            central_topic="Backpropagation Acceleration",
+            spoken_dialogue="Today we explore gradient descent speedups with momentum.",
+            main_takeaway="Momentum dampens oscillations in steep valleys.",
+            is_short=True,
+        )
+        meta1 = self.generator.generate("batch_01", "c1", "vid1.mp4", u1)
+        self.assertLess(len(meta1.title), 80)
+        self.assertTrue(meta1.title.endswith("#Shorts"))
+        self.assertNotIn("System Architecture Deep Dive", meta1.title)
+        self.assertNotIn("Core Architecture Guide", meta1.title)
+        self.assertIn("Backpropagation Acceleration", meta1.title)
+
+        # 2. Landscape video without dialogue
+        u2 = ContentUnderstanding(
+            subject="Vector Database Indexing",
+            central_topic="HNSW Graphs vs IVF Flat",
+            main_takeaway="HNSW provides faster query latency at the expense of memory footprint.",
+            is_short=False,
+        )
+        meta2 = self.generator.generate("batch_01", "c2", "vid2.mp4", u2)
+        self.assertLess(len(meta2.title), 80)
+        self.assertNotIn("#Shorts", meta2.title)
+        self.assertNotIn("System Architecture Deep Dive", meta2.title)
+        self.assertNotIn("Core Architecture Guide", meta2.title)
+
+        # 3. Super long topic respects 80-char limit
+        u3 = ContentUnderstanding(
+            subject="Extremely Long Technical Subject That Exceeds Normal Length Thresholds By Far",
+            central_topic="Extremely Long Technical Subject That Exceeds Normal Length Thresholds By Far",
+            is_short=True,
+        )
+        meta3 = self.generator.generate("batch_01", "c3", "vid3.mp4", u3)
+        self.assertLess(len(meta3.title), 80)
+        self.assertTrue(meta3.title.endswith("#Shorts"))
+
+    def test_description_and_tags_contain_actual_entities_no_boilerplate(self):
+        understanding = ContentUnderstanding(
+            subject="Postgres Concurrency",
+            central_topic="MVCC and Row Locking",
+            summary="An analysis of how PostgreSQL achieves snapshot isolation using Multi-Version Concurrency Control.",
+            main_takeaway="FOR UPDATE locks rows exclusively while preventing read blocks.",
+            entities=["PostgreSQL", "MVCC", "Row Locking", "ACID Transactions"],
+            on_screen_text=["Row Locks", "Isolation Levels"],
+            is_short=True,
+        )
+
+        metadata = self.generator.generate("batch_01", "c_mvcc", "mvcc.mp4", understanding)
+
+        # Description assertions
+        desc = metadata.description
+        self.assertNotIn("Mastering mvcc and row locking is essential for building scalable", desc)
+        self.assertNotIn("Lindy durability", desc)
+        self.assertNotIn("Architecture tradeoffs and decision-making patterns", desc)
+        self.assertIn("PostgreSQL", desc)
+        self.assertIn("ACID Transactions", desc)
+        self.assertIn("Key points highlighted:", desc)
+        self.assertIn("• Row Locks", desc)
+        self.assertIn("About Unstocks:", desc)
+
+        # Hashtags assertions
+        self.assertIn("PostgreSQL", metadata.hashtags)
+        self.assertNotIn("SoftwareEngineering", metadata.hashtags)
+        self.assertNotIn("SystemDesign", metadata.hashtags)
+        self.assertIn("Shorts", metadata.hashtags)
+
+        # Tags assertions
+        total_tag_chars = sum(len(t) for t in metadata.tags)
+        self.assertLess(total_tag_chars, 500)
+        self.assertIn("postgresql", metadata.tags)
+        self.assertIn("acid transactions", metadata.tags)
+        self.assertIn("unstocks", metadata.tags)
+        self.assertIn("shorts", metadata.tags)
+        # Ensure generic defaults are NOT forced when not in entities
+        self.assertNotIn("software architecture", metadata.tags)
+        self.assertNotIn("engineering leadership", metadata.tags)
+
 
 if __name__ == "__main__":
     unittest.main()

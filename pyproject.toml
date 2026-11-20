@@ -1,0 +1,19 @@
+[project]
+name = "yt-manager"
+version = "1.0.0"
+description = "Autonomous YouTube Metadata & Daily Upload Automation"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v"

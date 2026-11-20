@@ -11,7 +11,7 @@ import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .config import YTManagerConfig
 from .understanding import ContentUnderstanding
@@ -56,30 +56,38 @@ class SEOMetadataGenerator:
 
     def _generate_title(self, understanding: ContentUnderstanding) -> str:
         """
-        Generates a search-friendly, high-CTR, non-clickbait YouTube title (< 80 chars).
-        Uses strong opening keywords directly related to the actual topic.
+        Generates a search-friendly, high-CTR, non-clickbait YouTube title strictly under 80 characters.
+        Dynamically adapts structure based on content attributes (spoken dialogue, on-screen text, key takeaways).
+        Appends #Shorts strictly when is_short is True.
         """
-        subject = understanding.subject.strip()
-        topic = understanding.central_topic.strip()
-        is_short = understanding.is_short
+        topic = (understanding.central_topic or understanding.subject or "Technical Guide").strip()
+        topic = topic.rstrip(". :|-")
+        
+        has_dialogue = bool(understanding.spoken_dialogue and len(understanding.spoken_dialogue.strip()) > 10)
+        has_visual_text = bool(understanding.on_screen_text and len(understanding.on_screen_text) > 0)
+        takeaway = understanding.main_takeaway.strip().rstrip(". ") if understanding.main_takeaway else ""
 
-        # Choose primary phrase
-        primary = topic if topic and len(topic) <= 45 else subject
-        if len(primary) > 45:
-            primary = primary[:45].rsplit(" ", 1)[0]
-
-        if is_short:
-            # YouTube Shorts format: Punchy Hook | Context #Shorts
-            title = f"{primary}: Core Architecture Guide #Shorts"
-            if len(title) > 75:
-                title = f"{primary} #Shorts"
+        # Dynamic title variation based on content characteristics
+        if has_dialogue and takeaway:
+            base_title = f"{topic}: What You Need to Know"
+        elif has_visual_text:
+            base_title = f"{topic} Breakdown & Overview"
+        elif takeaway and 10 <= len(takeaway) <= 40:
+            base_title = f"{topic} — {takeaway}"
         else:
-            # Standard video: High intent search format
-            title = f"How {primary} Works | System Architecture Deep Dive"
-            if len(title) > 90:
-                title = f"{primary} Explained"
+            base_title = f"{topic} Explained"
 
-        return title.strip()
+        suffix = " #Shorts" if understanding.is_short else ""
+        max_base_len = 78 - len(suffix)  # Guarantees final title length <= 78 (< 80 chars)
+
+        if len(base_title) > max_base_len:
+            truncated = base_title[:max_base_len].rsplit(" ", 1)[0]
+            if len(truncated) < 10:
+                truncated = topic[:max_base_len].rsplit(" ", 1)[0]
+            base_title = truncated.rstrip(", -:|")
+
+        final_title = f"{base_title}{suffix}".strip()
+        return final_title
 
     def _generate_description(
         self,
@@ -87,59 +95,62 @@ class SEOMetadataGenerator:
         title: str,
     ) -> Tuple[str, List[str]]:
         """
-        Generates a 6-tier structured YouTube description reflecting the actual clip.
+        Generates a structured YouTube description reflecting the actual clip content.
+        Uses summary, main_takeaway, on_screen_text, and extracted entities.
         """
-        subject = understanding.subject
-        topic = understanding.central_topic
-        summary = understanding.summary
-        takeaway = understanding.main_takeaway
+        topic = (understanding.central_topic or understanding.subject or "Technology").strip()
+        summary = understanding.summary.strip()
+        takeaway = understanding.main_takeaway.strip()
         is_short = understanding.is_short
 
-        # 1. Compelling opening hook sentence
-        opening_hook = f"Mastering {topic.lower()} is essential for building scalable, high-conviction engineering systems."
+        # 1. Opening hook derived from actual content
+        if summary and takeaway and takeaway not in summary:
+            opening_hook = f"{summary} {takeaway}"
+        elif summary:
+            opening_hook = summary
+        elif takeaway:
+            opening_hook = f"In this breakdown, we examine {topic.lower()}: {takeaway}"
+        else:
+            opening_hook = f"A concise breakdown of {topic.lower()}."
 
-        # 2. Concise explanation of the video
-        explanation = (
-            f"In this {'Short' if is_short else 'video'}, we break down the core mechanics of {topic.lower()}. "
-            f"{takeaway}"
-        )
+        # 2. Key takeaways and content explanation
+        explanation_lines = []
+        if takeaway and takeaway not in opening_hook:
+            explanation_lines.append(f"Key Takeaway: {takeaway}")
+        if understanding.on_screen_text:
+            key_points = [t.strip() for t in understanding.on_screen_text[:4] if t.strip()]
+            if key_points:
+                explanation_lines.append("Key points highlighted:")
+                for pt in key_points:
+                    explanation_lines.append(f"• {pt}")
+        explanation = "\n".join(explanation_lines) if explanation_lines else f"Exploring the core details and practical applications of {topic.lower()}."
 
-        # 3. Relevant search keywords naturally incorporated
-        keywords_context = (
-            f"Key technical areas covered:\n"
-            f"• Core implementation principles for {topic.lower()}\n"
-            f"• Architecture tradeoffs and decision-making patterns\n"
-            f"• Engineering durability and technical debt mitigation"
-        )
+        # 3. Dynamic keywords / topics covered derived from actual entities
+        entity_items = [e.strip() for e in understanding.entities if e.strip() and e.lower() != "unstocks"]
+        if entity_items:
+            keywords_context = "Topics covered in this clip:\n" + "\n".join(f"• {e}" for e in entity_items[:6])
+        else:
+            keywords_context = f"Topic covered: {topic}"
 
-        # 4. Additional context
-        additional_context = (
-            f"Whether you are designing production backend services or optimizing developer workflows, "
-            f"mastering these foundational patterns ensures long-term Lindy durability."
-        )
-
-        # 5. Relevant Call to Action
+        # 4. Relevant Call to Action
         cta = (
             f"📌 About Unstocks:\n"
             f"Unstocks provides curated digital blueprints and execution engines to turn high-conviction ideas "
             f"into durable software deliverables.\n\n"
-            f"👉 Subscribe to @unstocks for more architecture blueprints and systems engineering breakdowns.\n"
+            f"👉 Subscribe to @unstocks for more insights and breakdowns.\n"
             f"🌐 Channel: {self.config.channel_url}"
         )
 
-        # 6. Relevant Hashtags
-        # Clean entity words for hashtags
-        clean_entities = []
+        # 5. Hashtags derived from actual entities
+        clean_hashtags: List[str] = []
         for e in understanding.entities:
             clean = re.sub(r'[^a-zA-Z0-9]', '', e)
-            if clean and len(clean) >= 3 and clean.lower() not in [c.lower() for c in clean_entities]:
-                clean_entities.append(clean)
+            if clean and len(clean) >= 3 and clean.lower() not in [c.lower() for c in clean_hashtags]:
+                clean_hashtags.append(clean)
 
-        hashtags = clean_entities[:3]
-        if "SoftwareEngineering" not in hashtags and len(hashtags) < 4:
-            hashtags.append("SoftwareEngineering")
-        if "SystemDesign" not in hashtags and len(hashtags) < 4:
-            hashtags.append("SystemDesign")
+        hashtags = clean_hashtags[:3]
+        if "Unstocks" not in hashtags and len(hashtags) < 4:
+            hashtags.append("Unstocks")
         if is_short and "Shorts" not in hashtags:
             hashtags.append("Shorts")
 
@@ -152,46 +163,49 @@ class SEOMetadataGenerator:
             "",
             keywords_context,
             "",
-            additional_context,
-            "",
             cta,
             "",
             hashtags_formatted,
         ]
 
-        description = "\n".join(description_parts)
+        description = "\n".join(description_parts).strip()
         return description, hashtags
 
     def _generate_tags(self, understanding: ContentUnderstanding) -> List[str]:
         """Generates focused, high-relevance YouTube tags under 500 characters total."""
-        tags = []
-        
-        # Add primary entities and topic
-        if understanding.central_topic:
-            tags.append(understanding.central_topic.lower())
-        if understanding.subject and understanding.subject.lower() != understanding.central_topic.lower():
-            tags.append(understanding.subject.lower())
+        tags: List[str] = []
 
+        # Add primary topic and subject
+        if understanding.central_topic:
+            t = understanding.central_topic.strip().lower()
+            if t and t not in tags:
+                tags.append(t)
+        if understanding.subject:
+            s = understanding.subject.strip().lower()
+            if s and s not in tags:
+                tags.append(s)
+
+        # Add content-specific entities
         for ent in understanding.entities:
             ent_clean = ent.strip().lower()
             if ent_clean and ent_clean not in tags:
                 tags.append(ent_clean)
 
-        # Relevant niche terms
-        standard_terms = [
-            "software architecture",
-            "system design",
-            "developer productivity",
-            "technical decision making",
-            "unstocks",
-            "engineering leadership",
-        ]
-        for term in standard_terms:
-            if term not in tags:
-                tags.append(term)
+        # Include on-screen text phrases if short and informative
+        for text in understanding.on_screen_text:
+            cleaned_text = text.strip().lower()
+            if 3 <= len(cleaned_text) <= 30 and cleaned_text not in tags:
+                tags.append(cleaned_text)
 
+        # Standard channel tag
+        if "unstocks" not in tags:
+            tags.append("unstocks")
+
+        # Format tag for Shorts
         if understanding.is_short:
-            tags.extend(["shorts", "tech shorts", "youtube shorts"])
+            for st in ["shorts", "youtube shorts"]:
+                if st not in tags:
+                    tags.append(st)
 
         # Enforce YouTube 500 characters limit
         result_tags: List[str] = []

@@ -4,6 +4,8 @@ Unit tests for VideoUnderstandingEngine.
 import shutil
 import tempfile
 import unittest
+import unittest.mock
+import urllib.error
 from pathlib import Path
 
 from yt_manager.inspector import MediaInspection
@@ -82,6 +84,86 @@ class TestVideoUnderstandingEngine(unittest.TestCase):
         self.assertNotIn("35,000 decisions", understanding.summary)
         self.assertNotIn("35,000 decisions", understanding.main_takeaway)
         self.assertEqual(understanding.is_short, True)
+        # Check Task 1C deterministic fallback updates
+        self.assertEqual(understanding.confidence, 0.7)
+        self.assertEqual(understanding.entities, ["Database Indexing Explained", "Unstocks"])
+        self.assertNotIn("Software Architecture", understanding.entities)
+        self.assertNotIn("Technical Decision Making", understanding.entities)
+
+    @unittest.mock.patch("time.sleep")
+    @unittest.mock.patch("urllib.request.urlopen")
+    def test_gemini_vision_retry_on_transient_error(self, mock_urlopen, mock_sleep):
+        frame = self.temp_dir / "frame_001.jpg"
+        frame.write_bytes(b"\xff\xd8\xff\xe0dummyjpeg")
+
+        inspection = MediaInspection(
+            file_path=self.temp_dir / "test.mp4",
+            duration_seconds=15.0,
+            width=720,
+            height=1280,
+            aspect_ratio=0.5625,
+            is_short=True,
+            video_codec="h264",
+            audio_codec="aac",
+            has_audio=True,
+            fps=30.0,
+            bitrate=1000000,
+            extracted_frames=[frame],
+        )
+
+        engine = VideoUnderstandingEngine(gemini_api_key="test_api_key_123")
+
+        # Mock first attempt fails with HTTP 429, second attempt succeeds
+        resp_obj = unittest.mock.MagicMock()
+        resp_obj.read.return_value = b'{"candidates": [{"content": {"parts": [{"text": "{\\"subject\\": \\"Retry Succeeded\\", \\"central_topic\\": \\"Transient Resilience\\"}"}]}}]}'
+        resp_obj.__enter__.return_value = resp_obj
+
+        mock_urlopen.side_effect = [
+            urllib.error.HTTPError("https://api.google.com", 429, "Too Many Requests", {}, None),
+            resp_obj,
+        ]
+
+        with self.assertLogs("YTManager.Understanding", level="WARNING") as cm:
+            res = engine._call_gemini_vision(inspection, "Analyze frames")
+
+        self.assertIsNotNone(res)
+        self.assertEqual(res.get("subject"), "Retry Succeeded")
+        self.assertEqual(mock_urlopen.call_count, 2)
+        mock_sleep.assert_called_once_with(2)
+        self.assertTrue(any("transient HTTP 429" in msg for msg in cm.output))
+
+    @unittest.mock.patch("time.sleep")
+    @unittest.mock.patch("urllib.request.urlopen")
+    def test_gemini_vision_permanent_failure_logs_warning_and_returns_none(self, mock_urlopen, mock_sleep):
+        frame = self.temp_dir / "frame_001.jpg"
+        frame.write_bytes(b"\xff\xd8\xff\xe0dummyjpeg")
+
+        inspection = MediaInspection(
+            file_path=self.temp_dir / "test.mp4",
+            duration_seconds=15.0,
+            width=720,
+            height=1280,
+            aspect_ratio=0.5625,
+            is_short=True,
+            video_codec="h264",
+            audio_codec="aac",
+            has_audio=True,
+            fps=30.0,
+            bitrate=1000000,
+            extracted_frames=[frame],
+        )
+
+        engine = VideoUnderstandingEngine(gemini_api_key="test_api_key_123")
+
+        # Mock permanent URLError on both attempts
+        mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
+
+        with self.assertLogs("YTManager.Understanding", level="WARNING") as cm:
+            res = engine._call_gemini_vision(inspection, "Analyze frames")
+
+        self.assertIsNone(res)
+        self.assertEqual(mock_urlopen.call_count, 2)
+        self.assertTrue(any("network error after retry" in msg for msg in cm.output))
 
 
 if __name__ == "__main__":
