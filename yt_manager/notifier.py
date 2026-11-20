@@ -69,25 +69,52 @@ class Notifier:
             pass
 
     def _send_webhook(self, title: str, message: str, level: str) -> None:
-        """Sends lightweight webhook message if configured."""
+        """Sends lightweight webhook message if configured (supports Discord, Telegram, Slack, and generic webhooks)."""
         if not self.config.webhook_url:
             return
-        payload = {
-            "title": f"YT Manager: {title}",
-            "text": message,
-            "level": level,
-            "timestamp": datetime.now().isoformat(),
-        }
+
+        url = self.config.webhook_url.strip()
         try:
+            # 1. Discord Webhook
+            if "discord.com/api/webhooks" in url or "discordapp.com/api/webhooks" in url:
+                color_map = {
+                    "INFO": 0x3498DB,     # Blue
+                    "SUCCESS": 0x2ECC71,  # Green
+                    "WARNING": 0xF1C40F,  # Amber
+                    "ERROR": 0xE74C3C,    # Red
+                }
+                embed = {
+                    "title": f"YT Manager: {title}",
+                    "description": message,
+                    "color": color_map.get(level, 0x3498DB),
+                    "footer": {"text": "Unstocks YT-Manager Automation"},
+                    "timestamp": datetime.now().isoformat(),
+                }
+                payload = {"embeds": [embed]}
+            # 2. Telegram Bot Webhook
+            elif "api.telegram.org" in url:
+                payload = {
+                    "text": f"<b>YT Manager: {title}</b>\n\n{message}",
+                    "parse_mode": "HTML",
+                }
+            # 3. Generic Webhook (Slack / custom HTTP receiver)
+            else:
+                payload = {
+                    "title": f"YT Manager: {title}",
+                    "text": f"*{title}*\n{message}",
+                    "level": level,
+                    "timestamp": datetime.now().isoformat(),
+                }
+
             req = urllib.request.Request(
-                self.config.webhook_url,
+                url,
                 data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers={"Content-Type": "application/json", "User-Agent": "YT-Manager-Notifier/1.0"},
                 method="POST",
             )
             urllib.request.urlopen(req, timeout=5)
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.warning(f"Webhook dispatch failed: {e}")
 
     def notify(
         self,
