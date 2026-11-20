@@ -97,6 +97,15 @@ def cmd_status(args: argparse.Namespace, config: YTManagerConfig) -> int:
     except Exception as e:
         token_status = f"ERROR / EXPIRED ({e})"
 
+    # Check Telegram Bot
+    tg_status = "DISABLED"
+    if config.enable_telegram_ingest:
+        if config.telegram_bot_token:
+            paired = f"PAIRED (Chat ID: {config.telegram_chat_id})" if config.telegram_chat_id else "READY TO PAIR (Open t.me/unstocks_manager_bot and send /start)"
+            tg_status = f"ACTIVE — {paired}"
+        else:
+            tg_status = "ENABLED (Missing Bot Token)"
+
     print("\n" + "=" * 60)
     print("             YT MANAGER — SYSTEM STATUS")
     print("=" * 60)
@@ -106,6 +115,7 @@ def cmd_status(args: argparse.Namespace, config: YTManagerConfig) -> int:
     print(f"Channel Match       : {channel_info}")
     print(f"Schedule Time       : {config.schedule_time} {config.timezone} Daily")
     print(f"Windows Task Status : {task_status}")
+    print(f"Telegram Mobile Bot : {tg_status}")
     print(f"Inbox Directory     : {config.inbox_dir}")
     print(f"Clips in Inbox      : {len(inbox_files)} / {config.daily_clip_count} required")
     for f in inbox_files:
@@ -445,6 +455,25 @@ def cmd_setup_ytdlp(args: argparse.Namespace, config: YTManagerConfig) -> int:
         return 1
 
 
+def cmd_telegram(args: argparse.Namespace, config: YTManagerConfig) -> int:
+    """Runs the Telegram Bot receiver to ingest video clips sent from your phone."""
+    from .telegram_bot import TelegramIngestionBot
+
+    bot = TelegramIngestionBot(config)
+    if not bot.is_configured:
+        print("[Telegram] Error: Telegram bot token is not configured in config/settings.json.")
+        return 1
+
+    if getattr(args, "once", False):
+        print("\n[Telegram] Polling once for pending mobile video uploads...")
+        ingested = bot.poll_once()
+        print(f"[Telegram] Completed: Ingested {ingested} clip(s) into inbox.\n")
+        return 0
+    else:
+        bot.run_polling_loop(interval=float(getattr(args, "interval", 3.0)))
+        return 0
+
+
 def main() -> None:
     config = YTManagerConfig.load()
     config.save_default_settings()
@@ -504,6 +533,11 @@ def main() -> None:
     # setup-ytdlp
     subparsers.add_parser("setup-ytdlp", help="Download official standalone yt-dlp.exe into scripts/")
 
+    # telegram
+    tg_parser = subparsers.add_parser("telegram", help="Run Telegram bot to ingest video clips sent from your phone")
+    tg_parser.add_argument("--once", action="store_true", help="Poll once for pending mobile uploads and exit")
+    tg_parser.add_argument("--interval", type=float, default=3.0, help="Polling interval in seconds (default 3.0)")
+
     args = parser.parse_args()
 
     dispatch = {
@@ -516,6 +550,7 @@ def main() -> None:
         "daemon": cmd_daemon,
         "harvest": cmd_harvest,
         "setup-ytdlp": cmd_setup_ytdlp,
+        "telegram": cmd_telegram,
     }
 
     handler = dispatch.get(args.command)

@@ -156,6 +156,22 @@ class WorkflowOrchestrator:
             )
             return report
 
+        # Pre-flight Telegram mobile video ingestion if enabled
+        if getattr(self.config, "enable_telegram_ingest", False) and getattr(self.config, "telegram_bot_token", ""):
+            try:
+                from .telegram_bot import TelegramIngestionBot
+                tg_bot = TelegramIngestionBot(self.config)
+                ingested = tg_bot.poll_once()
+                if ingested > 0:
+                    self.notifier.notify(
+                        event="TELEGRAM_INGEST",
+                        title="Telegram Mobile Clips Ingested",
+                        message=f"Successfully received {ingested} clip(s) from Telegram into inbox.",
+                        level="INFO",
+                    )
+            except Exception as e:
+                self.state.log(None, "WARNING", f"Pre-flight Telegram ingest check failed: {e}")
+
         # 2. Check Daily Input Folder & Validate
         detection = self.detector.evaluate_daily_batch(date_str=today_date_str)
 

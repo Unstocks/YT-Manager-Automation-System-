@@ -14,5 +14,8 @@
     "allow_deterministic_excess": false,
     "enable_toast_notifications": true,
     "enable_console_notifications": true,
-    "webhook_url": ""
+    "webhook_url": "",
+    "telegram_bot_token": "9097348789:AAF27o5Y0UcJxYqJuqCv0YrfWfbmo44RoaU",
+    "telegram_chat_id": "",
+    "enable_telegram_ingest": true
 }
