@@ -254,6 +254,20 @@ class TelegramIngestionBot:
             )
             return None
 
+        # Check Telegram Bot API 20MB limit
+        file_size = (video_obj or doc_obj).get("file_size", 0)
+        if file_size > 20 * 1024 * 1024:
+            size_mb = file_size / (1024 * 1024)
+            self.send_message(
+                chat_id,
+                f"⚠️ *File is too large ({size_mb:.1f} MB)*\n\n"
+                f"Telegram cloud limits bot downloads to 20 MB per file.\n\n"
+                f"💡 *Tips to keep maximum quality:*\n"
+                f"• For Shorts (15–60s), export at 1080p 30fps / 10–12 Mbps bitrate (usually ~10–18 MB).\n"
+                f"• Or send as a standard Gallery video so Telegram optimizes it to fit."
+            )
+            return None
+
         # Sanitize filename
         clean_name = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', orig_filename)
         if not clean_name.lower().endswith((".mp4", ".mov", ".webm", ".mkv")):
