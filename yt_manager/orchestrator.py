@@ -31,6 +31,19 @@ from .uploader import YouTubeUploader
 from .verifier import VideoVerifier
 
 
+def check_network_connectivity(timeout: float = 3.0) -> bool:
+    """Verifies that the machine has an active internet connection to YouTube/Google."""
+    import socket
+    for host in ("8.8.8.8", "1.1.1.1", "www.youtube.com"):
+        try:
+            port = 53 if host[0].isdigit() else 443
+            socket.create_connection((host, port), timeout=timeout).close()
+            return True
+        except (socket.timeout, OSError):
+            continue
+    return False
+
+
 class WorkflowOrchestrator:
     def __init__(
         self,
@@ -58,7 +71,28 @@ class WorkflowOrchestrator:
         today_ist = force_date or datetime.now(timezone.utc).strftime("%d %B %Y")
         today_date_str = force_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-        # 1. Check for already completed batch today (Duplicate-run protection)
+        # 1. Pre-flight Network Health Check (Skip in mock/test mode)
+        if not self.mock_mode and not check_network_connectivity():
+            offline_msg = "No internet connection detected. Batch deferred until network connectivity is restored."
+            self.notifier.notify(
+                event="NETWORK_OFFLINE",
+                title="Network Offline — Batch Deferred",
+                message=offline_msg,
+                level="WARNING",
+            )
+            return DailyBatchReport(
+                execution_date=today_ist,
+                scheduled_time=f"{self.config.schedule_time} {self.config.timezone}",
+                clips_received=0,
+                metadata_generated=0,
+                successfully_uploaded=0,
+                failed=0,
+                execution_status="DEFERRED (OFFLINE)",
+                failure_details=offline_msg,
+                required_action="Connect laptop to Wi-Fi/Internet; system will automatically resume on next trigger.",
+            )
+
+        # 2. Check for already completed batch today (Duplicate-run protection)
         existing_batch = self.state.get_batch_for_date(today_date_str)
         if existing_batch and existing_batch["status"] == "COMPLETED":
             self.notifier.notify(
@@ -341,12 +375,41 @@ class WorkflowOrchestrator:
             shutil.move(str(video_path), str(dest))
 
     def _move_to_failed(self, video_path: Path, batch_id: str) -> None:
-        """Moves failed video safely from processing/ to failed/<batch_id>/."""
-        target_dir = self.config.failed_dir / batch_id
-        target_dir.mkdir(parents=True, exist_ok=True)
-        dest = target_dir / video_path.name
-        if video_path.exists():
-            shutil.move(str(video_path), str(dest))
+        """
+        Safely returns failed video back to the inbox/ queue so that it will
+        automatically and smoothly retry in the next daily batch.
+        Also archives a copy in failed/<batch_id>/ for forensic diagnostics.
+        """
+        if not video_path.exists():
+            return
+
+        # 1. Archive diagnostic copy into failed/<batch_id>/
+        diagnostic_dir = self.config.failed_dir / batch_id
+        diagnostic_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copy2(str(video_path), str(diagnostic_dir / video_path.name))
+        except Exception:
+            pass
+
+        # 2. Return the video back to inbox/ queue for smooth next-day retry
+        inbox_dest = self.config.inbox_dir / video_path.name
+        if inbox_dest.exists() and inbox_dest != video_path:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            inbox_dest = self.config.inbox_dir / f"{video_path.stem}_retry_{timestamp}{video_path.suffix}"
+
+        shutil.move(str(video_path), str(inbox_dest))
+        self.state.log(
+            batch_id,
+            "INFO",
+            f"Returned failed video {video_path.name} to inbox queue at {inbox_dest.name} for future retry.",
+        )
+        self.notifier.notify(
+            event="REQUEUED_FAILED_CLIP",
+            title="Clip Re-queued to Inbox",
+            message=f"'{video_path.name}' failed during upload and has been safely returned to your inbox queue for automatic re-upload.",
+            level="WARNING",
+            batch_id=batch_id,
+        )
 
     def run_single_clip_test(self, clip_path: Path) -> ClipExecutionReport:
         """

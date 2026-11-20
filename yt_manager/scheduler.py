@@ -34,9 +34,10 @@ class TaskSchedulerManager:
 
         ps_script = f"""
         $action = New-ScheduledTaskAction -Execute "{python_exe}" -Argument "-m yt_manager run" -WorkingDirectory "{project_dir}"
-        $trigger = New-ScheduledTaskTrigger -Daily -At {self.config.schedule_time}
+        $t1 = New-ScheduledTaskTrigger -Daily -At {self.config.schedule_time}
+        $t2 = New-ScheduledTaskTrigger -AtLogOn
         $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
-        Register-ScheduledTask -TaskName "{TASK_NAME}" -Action $action -Trigger $trigger -Settings $settings -Description "YT Manager Autonomous Daily YouTube Upload at 6:00 PM IST" -Force
+        Register-ScheduledTask -TaskName "{TASK_NAME}" -Action $action -Trigger @($t1, $t2) -Settings $settings -Description "YT Manager Autonomous Daily YouTube Upload and Opportunistic Catch-Up" -Force
         """
         try:
             res = subprocess.run(
@@ -45,7 +46,7 @@ class TaskSchedulerManager:
                 text=True,
                 check=True,
             )
-            print(f"[Scheduler] Windows Scheduled Task '{TASK_NAME}' registered successfully at {self.config.schedule_time} Daily.")
+            print(f"[Scheduler] Windows Scheduled Task '{TASK_NAME}' registered with Dual Triggers: Daily at {self.config.schedule_time} + Opportunistic Catch-Up on Logon.")
             return True
         except subprocess.CalledProcessError as e:
             print(f"[Scheduler] Warning: Failed to register Windows Scheduled Task: {e.stderr}")
