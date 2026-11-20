@@ -1,75 +1,78 @@
 # YT Manager Automation System
 
-> **Autonomous YouTube Shorts Daily Upload, Metadata Engineering & Media Transformation Architecture**  
+> **Autonomous YouTube Metadata Engineering & Daily Upload Automation**  
 > Engineered for **Unstocks** (`@unstocks` / `UCT0tm0KSB2BlIjdY6uUZCeA`). Built on principles of **Lindy Durability**, Zero External Python Dependencies, and Resilient Automation.
 
 ---
 
 ## 🏛️ System Architecture & Philosophy
 
-YT Manager is an autonomous desktop engine designed to run unattended for years without degradation. 
+YT Manager is an autonomous desktop engine designed to manage daily YouTube video uploads for Unstocks at **6:00 PM IST (Asia/Kolkata)**.
 
-Key architectural invariants:
+The user provides **exactly two video clips** daily into `YT-Manager/inbox/`. YT Manager detects the clips, performs deep content understanding, crafts SEO-optimized titles, descriptions, tags, and hashtags, uploads both videos directly to the specified YouTube channel via the official YouTube Data API v3, verifies their public catalog registration, and records execution status.
+
+### Key Architectural Invariants
 - **Zero External Python Dependencies:** Implemented strictly using the Python 3.14+ standard library (`urllib`, `sqlite3`, `http.server`, `hashlib`, `subprocess`) alongside system FFmpeg. No fragile pip packages that break across runtime updates.
 - **Strict Channel ID Security Guard:** Hardcoded security gating ensures uploads are strictly rejected unless authenticated against Channel ID `UCT0tm0KSB2BlIjdY6uUZCeA` (`@unstocks`).
 - **Transactional State Management:** Every batch, clip, SHA-256 hash, and upload status is atomically recorded in SQLite (`data/yt_manager.db`) to ensure zero duplicate uploads.
-- **FIFO Queue Buffer:** Users can drop multiple clips (e.g. 2, 5, 10) into `inbox/`. The engine selects **exactly 2 clips** for today's daily batch, moving them to `uploaded/` upon success, and leaves remaining clips in `inbox/` for upcoming days.
+- **Strict 2-Clip Daily Rule:** Validates that exactly 2 valid, un-uploaded clips exist in `inbox/`. Rejects partial batches (<2) with desktop alerts; detects ambiguity if excess clips exist.
+- **Zero Video Alteration:** The original video content is never modified, edited, or re-encoded. Videos are uploaded exactly as prepared by the creator.
 
 ```mermaid
 flowchart TD
-    A["Inbox Queue Buffer (inbox/)"] --> B{"Clips Available?"}
-    B -- ">= 2 Clips" --> C["FIFO Queue Selection (2 Clips)"]
-    B -- "< 2 Clips" --> D["Auto-Harvest (yt-dlp fallback)"]
-    D --> C
-    C --> E["Media Inspection (ffprobe 9:16 Shorts)"]
-    E --> F["Watermark Masker (Frosted-Glass Blur)"]
-    F --> G["BGM Cleaner (Strip Music, Keep Vocal+SFX)"]
-    G --> H["High-CTR Thumbnail Selector (thumbnails.set)"]
-    H --> I["AI Metadata & SEO Generator (Title, 6-Tier Desc, Tags)"]
-    I --> J["Resumable Upload (YouTube Data API v3)"]
-    J --> K["Verification Guard (Channel ID Match)"]
-    K --> L["Archival (uploaded/) & Daily Report"]
-    L --> M["Windows Native Toast Notification"]
+    A["Daily Input Folder (inbox/)"] --> B{"Validate Exactly 2 Clips"}
+    B -- "< 2 Clips" --> C["Log Missing & Send Alert"]
+    B -- "> 2 Clips" --> D["Report Ambiguity"]
+    B -- "== 2 Clips" --> E["Media Inspection (ffprobe/ffmpeg)"]
+    E --> F["AI Content Understanding (Frames, Audio, Topic)"]
+    F --> G["SEO Metadata Generation (Title, Description, Tags)"]
+    G --> H["Resumable Upload Video 1 (YouTube Data API v3)"]
+    H --> I["Post-Upload Verification Video 1"]
+    I --> J["Resumable Upload Video 2 (YouTube Data API v3)"]
+    J --> K["Post-Upload Verification Video 2"]
+    K --> L["Move to uploaded/ & Save State to SQLite"]
+    L --> M["Generate Daily Report & Windows Toast Notification"]
 ```
 
 ---
 
-## ⚡ Core Engine Features
+## ⚡ Core Modules
 
-### 1. Ingestion & FIFO Queue Buffer (`detector.py`)
-- Automatically scans `inbox/` for supported media (`.mp4`, `.mov`, `.mkv`, `.webm`).
+### 1. Ingestion & Gatekeeper (`yt_manager/detector.py`)
+- Scans `inbox/` for supported media (`.mp4`, `.mov`, `.mkv`, `.webm`, `.avi`, `.m4v`).
 - Computes SHA-256 checksums to guarantee deduplication against all historical uploads.
-- Selects the first 2 clips (ordered by modification time) for daily upload and preserves the rest for future days.
+- Validates that exactly 2 valid, un-uploaded clips are staged for today's batch.
 
-### 2. Audio BGM Remover & Speech Preservation (`audio_cleaner.py`)
-- Losslessly demuxes video streams (`-c:v copy`).
-- Uses spectral harmonic bandpass filtering and transient envelope analysis to attenuate background music while strictly preserving dialogue formants (300Hz–3.4kHz) and sound effects.
-- Normalizes loudness to YouTube's broadcast standard of **-14 LUFS** (EBU R128).
+### 2. Media Inspector (`yt_manager/inspector.py`)
+- Uses `ffprobe` to extract resolution, aspect ratio, duration, codecs, FPS, and bitrate.
+- Detects YouTube Shorts formatting (aspect ratio ≤ 1.05 and duration ≤ 60s).
+- Extracts keyframe samples and audio stream for content analysis.
 
-### 3. Localized Watermark Masker (`watermark_remover.py`)
-- Automatically applies localized frosted-glass box-blur and delogo inpainting over corner watermarks and social handles without cropping video aspect ratios.
+### 3. AI Video Understanding Engine (`yt_manager/understanding.py`)
+- Analyzes actual video content across keyframes, on-screen text, audio, and visual themes.
+- Enforces the **Critical Accuracy Rule**: never invents facts, quotes, or statistics not established in the clip.
+- Supports sidecar context files (`<clip_name>.json` or `<clip_name>.txt`), multimodal Gemini Vision API, and deterministic content-grounded inspection.
 
-### 4. High-CTR AI Frame / Thumbnail Selector (`thumbnail_picker.py`)
-- Evaluates keyframes using pure-FFmpeg Laplacian gradient sharpness, luminance variance, and contrast scoring.
-- Enhances the winning hook frame (+6% contrast, +10% saturation) and uploads it as the official custom thumbnail via `thumbnails.set`.
+### 4. SEO Metadata Generator (`yt_manager/metadata.py`)
+- Independently generates for each clip:
+  - **Title**: High-CTR, search-optimized, strong opening keywords, no clickbait, concise (<80 chars), with `#Shorts` for vertical clips. Exactly 1 recommended title.
+  - **Description**: 6-tier structured description (compelling opening hook, concise explanation, naturally incorporated search keywords, additional context, Unstocks CTA, and relevant hashtags).
+  - **Tags**: Niche search keywords and entities strictly under 500 characters.
+  - **Category & Language**: Dynamic assignment (e.g. Science & Tech `28`, Education `27`, Language `en`).
+- Serializes complete metadata to `metadata/<clip_id>.json`.
 
-### 5. Multi-Factor Candidate Evaluator (`pinterest_harvester.py`)
-- Scores video candidates across 5 pillars:
-  1. Duration retention curve (sweet spot 15s–55s)
-  2. Vertical 9:16 Shorts aspect ratio
-  3. Visual gradient sharpness
-  4. Best hook frame score
-  5. Audio track integrity
-- Produces a side-by-side **Candidate Evaluation Matrix** and crowns the #1 Winner.
+### 5. Official YouTube Resumable Uploader (`yt_manager/uploader.py` & `auth.py`)
+- Official YouTube Data API v3 resumable chunked protocol (256 KB multiples).
+- Automatic recovery via HTTP 308 queries on dropped network connections with exponential backoff.
+- Mandatory Channel ID check against `UCT0tm0KSB2BlIjdY6uUZCeA` before uploading.
 
-### 6. Official Resumable YouTube Uploader (`uploader.py` & `auth.py`)
-- Native resumable upload protocol using 256KB-multiple chunking with HTTP 308 auto-recovery.
-- Pure standard library Google OAuth 2.0 PKCE loopback listener with automatic token refresh.
-- Enforces strict public verification and Channel ID guard.
+### 6. Post-Upload Verifier (`yt_manager/verifier.py`)
+- Polls YouTube API to verify catalog entry, processing status, and public accessibility.
+- Captures exact rejection reasons if a video is restricted or rejected.
 
-### 7. Persistent Windows Scheduler (`scheduler.py`)
-- Installs native Windows Scheduled Task (`YT-Manager-Daily`) configured to trigger daily at **17:00 IST** (5:00 PM IST) with automated retries until 18:00 IST.
-- Survives system reboots and sleep states.
+### 7. Persistent Scheduler (`yt_manager/scheduler.py`)
+- Windows Task Scheduler integration (`scripts/install_scheduler.ps1`): Triggers daily at 6:00 PM IST (18:00 Asia/Kolkata).
+- Standalone background daemon mode with automatic retry intervals if clips are incomplete.
 
 ---
 
@@ -81,114 +84,75 @@ YT-Manager/
 │   ├── settings.json              # Active configuration & channel targets
 │   ├── settings.example.json      # Template settings
 │   ├── client_secrets.example.json# Template OAuth 2.0 credentials
-│   └── client_secrets.json        # Google OAuth client secrets (gitignored)
+│   ├── client_secrets.json        # Google OAuth client secrets (gitignored)
+│   └── token.json                 # Persistent OAuth token store (gitignored)
 ├── data/
 │   └── yt_manager.db              # SQLite transactional state store (gitignored)
-├── docs/                          # Comprehensive technical reports & architecture
+├── docs/                          # Master Reports
 │   ├── MASTER_REPORT_1_SYSTEM_AUDIT_AND_ARCHITECTURE.md
 │   ├── MASTER_REPORT_2_IMPLEMENTATION_AND_TESTING.md
-│   ├── MASTER_REPORT_3_DEPLOYMENT_AND_OPERATIONS.md
-│   ├── PINTEREST_HARVESTER_AND_PIPELINE.md
-│   └── RESEARCH_AND_ARCHITECTURE_BGM_REMOVAL.md
-├── inbox/                         # User drop folder for incoming clips (FIFO queue)
+│   └── MASTER_REPORT_3_DEPLOYMENT_AND_OPERATIONS.md
+├── inbox/                         # User drop folder for daily 2 video clips
 ├── processing/                    # Atomic staging workspace
 ├── uploaded/                      # Permanent archival of successfully uploaded clips
 ├── failed/                        # Quarantine directory for inspection failures
 ├── logs/                          # System execution logs & daily reports
-├── scripts/                       # Helper scripts & standalone binaries (e.g. yt-dlp.exe)
-├── tests/                         # Full automated integration test suite (17 tests)
-│   ├── test_audio_cleaner.py
-│   ├── test_detector.py
-│   ├── test_inspector.py
-│   ├── test_metadata.py
-│   ├── test_orchestrator_integration.py
-│   ├── test_pinterest_harvester.py
-│   ├── test_thumbnail_picker.py
-│   ├── test_uploader_verifier.py
-│   └── test_watermark_remover.py
-├── yt_manager/                    # Core Python package
-│   ├── audio_cleaner.py           # BGM removal & vocal preservation
-│   ├── auth.py                    # Google OAuth PKCE & Channel ID guard
-│   ├── cli.py                     # Unified CLI interface
-│   ├── config.py                  # Dataclass configuration loader
-│   ├── detector.py                # Inbox scanning & FIFO queue logic
-│   ├── inspector.py               # Media probing & frame extraction
-│   ├── metadata.py                # High-CTR SEO metadata generation
-│   ├── notifier.py                # Windows Native Toast notifications
-│   ├── orchestrator.py            # End-to-end workflow orchestration
-│   ├── pinterest_harvester.py     # Board & candidate evaluation engine
-│   ├── reporter.py                # Section 8 Daily Execution Reports
-│   ├── scheduler.py               # Windows Task Scheduler manager
-│   ├── state.py                   # SQLite ACID transactional state
-│   ├── thumbnail_picker.py        # High-CTR AI thumbnail selector
-│   ├── understanding.py           # Video scene & dialogue understanding
-│   ├── uploader.py                # Official YouTube Data API v3 uploader
-│   ├── verifier.py                # YouTube catalog verification
-│   └── watermark_remover.py       # Frosted-glass watermark masker
-└── .gitignore                     # Airtight security & asset exclusions
+│   ├── yt_manager.log
+│   └── reports/
+├── metadata/                      # Generated clip metadata JSON documents
+├── scripts/                       # Helper scripts (install_scheduler.ps1, run_daily.ps1)
+├── tests/                         # Automated test suite (18 unit/integration tests)
+└── yt_manager/                    # Pure Python core engine
+    ├── __init__.py
+    ├── __main__.py
+    ├── auth.py
+    ├── cli.py
+    ├── config.py
+    ├── detector.py
+    ├── inspector.py
+    ├── metadata.py
+    ├── notifier.py
+    ├── orchestrator.py
+    ├── reporter.py
+    ├── scheduler.py
+    ├── state.py
+    ├── understanding.py
+    ├── uploader.py
+    └── verifier.py
 ```
 
 ---
 
-## 🚀 Quickstart & Usage
+## 🚀 Quick Start
 
-### 1. Prerequisites
-- Python 3.14+ (or Python 3.10+)
-- System FFmpeg installed and available on PATH (`ffmpeg` and `ffprobe`).
-
-### 2. Setup Standalone Downloader
-Download the portable `yt-dlp.exe` binary into `scripts/` (zero pip install needed):
-```powershell
-python -m yt_manager setup-ytdlp
-```
-
-### 3. Authenticate Channel
+### 1. Authenticate YouTube Account (One-Time)
 ```powershell
 python -m yt_manager auth
 ```
-*Opens Google OAuth login. Verify and select the **Unstocks** channel (`UCT0tm0KSB2BlIjdY6uUZCeA`).*
 
-### 4. Install Daily 5:00 PM Automation
-```powershell
-python -m yt_manager schedule --install
-```
-*Registers the native Windows Task Scheduler job.*
-
-### 5. Check System Status
+### 2. Verify Status
 ```powershell
 python -m yt_manager status
 ```
 
----
-
-## 🛠️ CLI Command Reference
-
-| Command | Description |
-| :--- | :--- |
-| `python -m yt_manager run` | Executes today's daily 2-clip batch immediately |
-| `python -m yt_manager run --mock` | Simulates the daily batch execution with mock API uploads |
-| `python -m yt_manager test-upload <video.mp4>` | Runs full end-to-end test upload on a single video file |
-| `python -m yt_manager harvest --board <url> --evaluate` | Evaluates all clips on a board and prints comparison matrix |
-| `python -m yt_manager harvest --board <url> --select-best --test-upload` | Selects winner, masks watermark, strips BGM, and uploads live |
-| `python -m yt_manager harvest --local --evaluate` | Evaluates local candidate videos present in `inbox/` |
-| `python -m yt_manager setup-ytdlp` | Installs portable `yt-dlp.exe` binary into `scripts/` |
-| `python -m yt_manager schedule --install` | Installs daily Windows Scheduled Task |
-| `python -m yt_manager schedule --uninstall` | Removes Windows Scheduled Task |
-| `python -m yt_manager status` | Displays live auth status, task status, and inbox queue |
-
----
-
-## 🧪 Test Suite
-
-Run the complete 17-test integration suite:
-```powershell
-python -m unittest discover -s tests -v
+### 3. Place 2 Clips in Inbox
+Drop your two daily video files (e.g. `clip_01.mp4` and `clip_02.mp4`) into:
+```
+C:\Users\sanja\.gemini\antigravity\scratch\YT-Manager\inbox\
 ```
 
----
+### 4. Run Batch Manually or Test in Mock Mode
+```powershell
+# Run in mock mode (dry run)
+python -m yt_manager run --mock
 
-## 🔒 Security & Privacy
+# Run live production upload
+python -m yt_manager run
+```
 
-- Client credentials and OAuth tokens are strictly ignored by `.gitignore` and never committed.
-- Gated to Channel ID `UCT0tm0KSB2BlIjdY6uUZCeA` (`@unstocks`) to prevent accidental uploads to personal profiles.
-- Media processing and audio separation execute locally on your machine with zero external cloud dependencies.
+### 5. Install Persistent Windows Daily Scheduler (6:00 PM IST)
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install_scheduler.ps1
+# OR
+python -m yt_manager schedule --install
+```

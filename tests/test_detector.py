@@ -38,7 +38,16 @@ class TestClipDetector(unittest.TestCase):
         self.assertEqual(res.status, "INSUFFICIENT")
         self.assertEqual(len(res.clips), 1)
 
-    def test_three_clips_queues_two_and_retains_one(self):
+    def test_three_clips_reports_ambiguity_by_default(self):
+        self._create_dummy_video("clip1.mp4", b"c1")
+        self._create_dummy_video("clip2.mp4", b"c2")
+        self._create_dummy_video("clip3.mp4", b"c3")
+        res = self.detector.evaluate_daily_batch()
+        self.assertEqual(res.status, "AMBIGUOUS_BATCH")
+        self.assertEqual(len(res.clips), 3)
+
+    def test_three_clips_with_deterministic_excess_allowed(self):
+        self.config.allow_deterministic_excess = True
         self._create_dummy_video("clip1.mp4", b"c1")
         self._create_dummy_video("clip2.mp4", b"c2")
         self._create_dummy_video("clip3.mp4", b"c3")

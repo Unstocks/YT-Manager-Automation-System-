@@ -26,7 +26,6 @@ from .metadata import SEOMetadataGenerator, VideoMetadata
 from .notifier import Notifier
 from .reporter import ClipExecutionReport, DailyBatchReport, ReportGenerator
 from .state import StateManager
-from .thumbnail_picker import ThumbnailPicker
 from .understanding import ContentUnderstanding, VideoUnderstandingEngine
 from .uploader import YouTubeUploader
 from .verifier import VideoVerifier
@@ -49,7 +48,6 @@ class WorkflowOrchestrator:
         self.auth = YouTubeAuthManager(self.config)
         self.uploader = YouTubeUploader(self.config, self.auth, mock_mode=self.mock_mode)
         self.verifier = VideoVerifier(self.config, self.auth, mock_mode=self.mock_mode)
-        self.thumbnail_picker = ThumbnailPicker()
         self.notifier = Notifier(self.config, self.state)
         self.reporter = ReportGenerator(self.config)
 
@@ -225,32 +223,7 @@ class WorkflowOrchestrator:
                 metadata_path=str(metadata_file),
             )
 
-            # 4. High-CTR Frame Selection (Thumbnail)
-            thumb_candidate = None
-            if self.config.enable_auto_thumbnail and inspection.extracted_frames:
-                try:
-                    thumb_candidate = self.thumbnail_picker.select_best_thumbnail(
-                        extracted_frames=inspection.extracted_frames,
-                        output_dir=work_dir,
-                        clip_id=clip_id,
-                        enhance=True,
-                    )
-                    self.notifier.notify(
-                        event="THUMBNAIL_SELECTED",
-                        title=f"Selected High-CTR Thumbnail {index}",
-                        message=f"Winning frame: {thumb_candidate.best_frame_path.name} (Score: {thumb_candidate.score:.1f})",
-                        batch_id=batch_id,
-                    )
-                except Exception as ex:
-                    self.notifier.notify(
-                        event="THUMBNAIL_WARNING",
-                        title=f"Thumbnail Selection Warning {index}",
-                        message=f"Could not pick custom frame: {ex}",
-                        level="WARNING",
-                        batch_id=batch_id,
-                    )
-
-            # 5. Upload Video
+            # 4. Upload Video
             self.notifier.notify(
                 event="UPLOADING",
                 title=f"Uploading Video {index}",
@@ -275,33 +248,7 @@ class WorkflowOrchestrator:
                 progress_callback=on_progress,
             )
 
-            # 6. Apply Custom Thumbnail (if selected)
-            if thumb_candidate and upload_result.success:
-                try:
-                    token = "mock_token" if self.mock_mode else self.auth.get_valid_access_token()
-                    self.thumbnail_picker.upload_thumbnail(
-                        video_id=upload_result.video_id,
-                        thumbnail_path=thumb_candidate.enhanced_thumbnail_path,
-                        access_token=token,
-                        mock_mode=self.mock_mode,
-                    )
-                    self.notifier.notify(
-                        event="THUMBNAIL_UPLOADED",
-                        title=f"Thumbnail Applied Video {index}",
-                        message=f"Set high-CTR thumbnail for video {upload_result.video_id}",
-                        batch_id=batch_id,
-                    )
-                except Exception as t_err:
-                    # Non-fatal if account doesn't have custom thumbnail feature enabled yet
-                    self.notifier.notify(
-                        event="THUMBNAIL_FAILED",
-                        title=f"Thumbnail Upload Notice {index}",
-                        message=f"YouTube accepted video, custom thumbnail notice: {t_err}",
-                        level="WARNING",
-                        batch_id=batch_id,
-                    )
-
-            # 7. Post-Upload Verification
+            # 5. Post-Upload Verification
             self.notifier.notify(
                 event="VERIFYING",
                 title=f"Verifying Video {index}",

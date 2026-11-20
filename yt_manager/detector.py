@@ -135,8 +135,17 @@ class ClipDetector:
             )
             return DetectionResult(status="INSUFFICIENT", message=msg, clips=validated)
 
-        # Select exactly target_count (2) clips for today's batch in FIFO order (oldest staged first)
-        # Any remaining clips stay in inbox for tomorrow's batch!
+        if len(validated) > target_count and not self.config.allow_deterministic_excess:
+            msg = (
+                f"Batch ambiguous: Found {len(validated)} valid clips in inbox, "
+                f"but daily batch requires exactly {target_count} clips. "
+                f"Ambiguous candidates: {[c.filename for c in validated]}. "
+                f"Please leave exactly {target_count} clips in inbox or enable 'allow_deterministic_excess' in settings.json."
+            )
+            return DetectionResult(status="AMBIGUOUS_BATCH", message=msg, clips=validated)
+
+        # Select exactly target_count (2) clips for today's batch in deterministic FIFO order (oldest staged first)
+        # Any remaining clips stay in inbox for tomorrow's batch if allow_deterministic_excess is active.
         validated_sorted = sorted(
             validated,
             key=lambda c: (c.path.stat().st_mtime if c.path.exists() else 0, c.filename),

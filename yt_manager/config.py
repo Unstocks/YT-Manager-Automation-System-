@@ -50,7 +50,7 @@ class YTManagerConfig:
     default_category_id: str = "28"  # 28: Science & Technology, 27: Education
     default_language: str = "en"
     gemini_api_key: str = ""
-    enable_auto_thumbnail: bool = True
+    allow_deterministic_excess: bool = False  # If False, reports ambiguity when >2 clips exist
 
     # Notification Config
     enable_toast_notifications: bool = True
@@ -127,7 +127,7 @@ class YTManagerConfig:
             default_category_id=loaded_data.get("default_category_id", "28"),
             default_language=loaded_data.get("default_language", "en"),
             gemini_api_key=loaded_data.get("gemini_api_key", ""),
-            enable_auto_thumbnail=bool(loaded_data.get("enable_auto_thumbnail", True)),
+            allow_deterministic_excess=bool(loaded_data.get("allow_deterministic_excess", False)),
             enable_toast_notifications=bool(loaded_data.get("enable_toast_notifications", True)),
             enable_console_notifications=bool(loaded_data.get("enable_console_notifications", True)),
             webhook_url=loaded_data.get("webhook_url", ""),
@@ -151,6 +151,7 @@ class YTManagerConfig:
                 "privacy_status": self.privacy_status,
                 "default_category_id": self.default_category_id,
                 "default_language": self.default_language,
+                "allow_deterministic_excess": self.allow_deterministic_excess,
                 "enable_toast_notifications": self.enable_toast_notifications,
                 "enable_console_notifications": self.enable_console_notifications,
                 "webhook_url": self.webhook_url,

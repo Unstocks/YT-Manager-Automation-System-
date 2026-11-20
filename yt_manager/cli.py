@@ -134,260 +134,61 @@ def cmd_daemon(args: argparse.Namespace, config: YTManagerConfig) -> int:
     return 0
 
 
-def cmd_harvest(args: argparse.Namespace, config: YTManagerConfig) -> int:
-    from .pinterest_harvester import PinterestHarvester
-    from .state import StateManager
+def cmd_retry(args: argparse.Namespace, config: YTManagerConfig) -> int:
+    mock_mode = getattr(args, "mock", False)
+    orchestrator = WorkflowOrchestrator(config, mock_mode=mock_mode)
+    print("\n[YT Manager] Retrying incomplete/failed daily uploads...")
 
-    state = StateManager(config.db_path)
-    harvester = PinterestHarvester(config, state)
-
-    # 1. Local Files / Inbox Evaluation Mode
-    if getattr(args, "local", False) or getattr(args, "files", None):
-        if getattr(args, "files", None):
-            local_files = [Path(f) for f in args.files]
-        else:
-            local_files = (
-                list(config.inbox_dir.glob("*.mp4"))
-                + list(config.inbox_dir.glob("*.mov"))
-                + list(config.inbox_dir.glob("*.mkv"))
-            )
-        
-        if not local_files:
-            print(f"[Harvester] No video clips found. Drop candidate clips into {config.inbox_dir} or pass --files <path1> <path2>.")
-            return 1
-
-        print(f"\n[Harvester] Evaluating {len(local_files)} Candidate Clip(s)...")
-        evals = []
-        for f in local_files:
-            if not f.exists():
-                print(f"[Harvester] Warning: File not found: {f}")
-                continue
-            metrics = harvester.evaluate_candidate_clip(f)
-            evals.append({
-                "pin_id": f.stem,
-                "raw_path": f,
-                **metrics,
-            })
-        
-        if not evals:
-            print("[Harvester] Could not evaluate any of the provided files.")
-            return 1
-
-        evals.sort(key=lambda x: x["composite_score"], reverse=True)
-
-        print("\n" + "=" * 75)
-        print(" " * 22 + "CANDIDATE EVALUATION MATRIX")
-        print("=" * 75)
-        for idx, ev in enumerate(evals, 1):
-            dur_label = "Optimal Shorts (15-55s)" if 15 <= ev['duration'] <= 55 else "Valid Shorts (<=60s)" if ev['duration'] <= 60.0 else "Exceeds Shorts (>60s)"
-            aspect_label = "9:16 Shorts" if ev['is_916'] else "Non-Short/Landscape"
-            audio_label = f"Present ({ev['audio_codec']})" if ev['has_audio'] else "None"
-            print(f"\nCandidate #{idx}: {ev['pin_id']}")
-            print(f"  File:            {ev['raw_path'].name}")
-            print(f"  Duration:        {ev['duration']:.1f}s ({dur_label})")
-            print(f"  Resolution:      {ev['width']}x{ev['height']} ({aspect_label})")
-            print(f"  Audio Track:     {audio_label}")
-            print(f"  Frame Sharpness: {ev['avg_sharpness']}")
-            print(f"  Best Hook Score: {ev['best_frame_score']}")
-            print(f"  COMPOSITE SCORE: {ev['composite_score']}/100.0")
-
-        winner = evals[0]
-        print("\n" + "-" * 75)
-        print(f"RECOMMENDED WINNER: Candidate #1 ({winner['raw_path'].name})")
-        print(f"Reason: Highest composite visual quality ({winner['composite_score']}/100.0) with {winner['duration']:.1f}s retention profile.")
-        print("-" * 75)
-
-        if args.select_best or args.test_upload:
-            print(f"\n[Harvester] Processing Winner: {winner['raw_path'].name} (BGM cleaner + Watermark mask)...")
-            work_dir = config.processing_dir / "winner_processing"
-            work_dir.mkdir(parents=True, exist_ok=True)
-            current_vid = winner["raw_path"]
-
-            # Step 1: Watermark
-            if not args.no_mask:
-                masked_vid = work_dir / f"masked_{winner['raw_path'].stem}.mp4"
-                try:
-                    harvester.watermark_masker.apply_blurred_mask(current_vid, masked_vid, "bottom_right")
-                    current_vid = masked_vid
-                    print(f"[Harvester] Applied localized frosted-glass watermark blur.")
-                except Exception as e:
-                    print(f"[Harvester] Watermark mask warning: {e}")
-
-            # Step 2: BGM Removal
-            if not args.no_clean_bgm:
-                audio_work = work_dir / "audio_clean"
-                clean_res = harvester.audio_cleaner.separate_and_clean(current_vid, audio_work)
-                if clean_res.success:
-                    current_vid = clean_res.cleaned_video_path
-                    print(f"[Harvester] Attenuated BGM while preserving vocals & SFX.")
-
-            print(f"[Harvester] Successfully prepared clean video: {current_vid.name}")
-
-            if args.test_upload:
-                print("\n[Harvester] Launching immediate test-upload to YouTube Channel @unstocks...")
-                from .orchestrator import WorkflowOrchestrator
-                orch = WorkflowOrchestrator(config, mock_mode=args.mock)
-                test_res = orch.run_single_clip_test(current_vid)
-                return 0 if test_res.upload_status == "SUCCESS" else 1
-
-        return 0
-
-    if args.evaluate:
-        evals = []
-        if args.board:
-            print(f"\n[Harvester] Evaluating Candidate Pins on Board: {args.board}")
-            evals = harvester.evaluate_board(args.board)
-        elif getattr(args, "pins", None):
-            print(f"\n[Harvester] Evaluating {len(args.pins)} Candidate Pin(s)...")
-            evals = harvester.evaluate_pins(args.pins)
-        elif args.pin:
-            print(f"\n[Harvester] Evaluating Single Pin: {args.pin}...")
-            evals = harvester.evaluate_pins([args.pin])
-
-        if not evals:
-            print("[Harvester] Could not extract video streams from candidate pin(s) or board.")
-            print("[Harvester] TIP: If using a private board, pass direct Pin URLs with --pins <url1> <url2>.")
-            return 1
-
-        print("\n" + "=" * 75)
-        print(" " * 22 + "BOARD CANDIDATE EVALUATION MATRIX")
-        print("=" * 75)
-        for idx, ev in enumerate(evals, 1):
-            dur_label = "Optimal Shorts (15-55s)" if 15 <= ev['duration'] <= 55 else "Valid Shorts (<=60s)" if ev['duration'] <= 60.0 else "Exceeds Shorts (>60s)"
-            aspect_label = "9:16 Shorts" if ev['is_916'] else "Non-Short/Landscape"
-            audio_label = f"Present ({ev['audio_codec']})" if ev['has_audio'] else "None"
-            print(f"\nCandidate #{idx}: Pin ID {ev['pin_id']}")
-            print(f"  URL:             {ev['pin_url']}")
-            print(f"  Duration:        {ev['duration']:.1f}s ({dur_label})")
-            print(f"  Resolution:      {ev['width']}x{ev['height']} ({aspect_label})")
-            print(f"  Audio Track:     {audio_label}")
-            print(f"  Frame Sharpness: {ev['avg_sharpness']}")
-            print(f"  Best Hook Score: {ev['best_frame_score']}")
-            print(f"  COMPOSITE SCORE: {ev['composite_score']}/100.0")
-
-        winner = evals[0]
-        print("\n" + "-" * 75)
-        print(f"RECOMMENDED WINNER: Candidate #1 (Pin ID: {winner['pin_id']})")
-        print(f"Reason: Highest composite visual quality ({winner['composite_score']}/100.0) with {winner['duration']:.1f}s retention profile.")
-        print("-" * 75)
-
-        if args.select_best:
-            pin_id = winner['pin_id']
-            print(f"\n[Harvester] Processing & Staging Winner: {pin_id}...")
-            work_dir = config.processing_dir / "winner_processing"
-            work_dir.mkdir(parents=True, exist_ok=True)
-            current_video = winner["raw_path"]
-
-            # Step 1: Watermark Masking
-            if not args.no_mask:
-                masked_video = work_dir / f"masked_{pin_id[:16]}.mp4"
-                try:
-                    harvester.watermark_masker.apply_blurred_mask(
-                        video_path=current_video,
-                        output_path=masked_video,
-                        position="bottom_right",
-                    )
-                    current_video = masked_video
-                    print(f"[Harvester] Applied localized frosted-glass watermark blur.")
-                except Exception as e:
-                    print(f"[Harvester] Watermark mask warning: {e}")
-
-            # Step 2: BGM Removal
-            if not args.no_clean_bgm:
-                audio_work = work_dir / f"audio_clean_{pin_id[:16]}"
-                audio_res = harvester.audio_cleaner.separate_and_clean(
-                    video_path=current_video,
-                    work_dir=audio_work,
-                )
-                if audio_res.success:
-                    current_video = audio_res.cleaned_video_path
-                    print(f"[Harvester] Attenuated BGM while preserving voice and sound effects.")
-
-            # Step 3: Move to inbox/
-            final_filename = f"unstocks_short_{pin_id[:16]}.mp4"
-            final_inbox_path = config.inbox_dir / final_filename
-            shutil.copy2(str(current_video), str(final_inbox_path))
-            print(f"[Harvester] SUCCESS: Staged clean video to: {final_inbox_path.name}")
-
-            # Step 4: Test Upload
-            if args.test_upload:
-                print(f"\n[Harvester] Launching immediate test-upload to YouTube Channel @unstocks...")
-                from .orchestrator import WorkflowOrchestrator
-                orch = WorkflowOrchestrator(config, mock_mode=args.mock)
-                test_res = orch.run_single_clip_test(final_inbox_path)
-                return 0 if test_res.upload_status == "SUCCESS" else 1
-
-            return 0
-        return 0
-
-    if args.pin:
-        print(f"\n[Harvester] Ingesting single pin: {args.pin}")
-        work_dir = config.processing_dir / "single_harvest_test"
-        res = harvester.process_and_stage_pin(
-            pin_url=args.pin,
-            work_dir=work_dir,
-            clean_bgm=not args.no_clean_bgm,
-            mask_watermark=not args.no_mask,
+    # Query database for incomplete/failed clips
+    with orchestrator.state._get_connection() as conn:
+        cursor = conn.execute(
+            "SELECT * FROM clips WHERE status NOT IN ('VERIFIED', 'UPLOADED') ORDER BY created_at DESC LIMIT 2"
         )
-        if res.status == "READY":
-            print(f"[Harvester] SUCCESS: Staged clean video to: {res.final_inbox_path.name}")
-            if args.test_upload:
-                print("\n[Harvester] Triggering immediate test-upload for staged pin...")
-                from .orchestrator import WorkflowOrchestrator
-                orch = WorkflowOrchestrator(config, mock_mode=args.mock)
-                test_res = orch.run_single_clip_test(res.final_inbox_path)
-                return 0 if test_res.upload_status == "SUCCESS" else 1
-            return 0
-        else:
-            print(f"[Harvester] FAILED: {res.error_message}")
-            return 1
+        failed_clips = [dict(r) for r in cursor.fetchall()]
 
-    elif args.board:
-        print(f"\n[Harvester] Harvesting from curated board: {args.board}")
-        harvested = harvester.run_pre_upload_harvest(
-            board_url=args.board,
-            target_count=args.count,
-            clean_bgm=not args.no_clean_bgm,
-            mask_watermark=not args.no_mask,
-        )
-        print(f"\n[Harvester] Completed: Deposited {len(harvested)} clips into {config.inbox_dir}")
-        return 0 if len(harvested) > 0 else 1
-
-    else:
-        print("[Harvester] Please provide either --pin <url> or --board <url>.")
-        return 1
-
-
-def cmd_setup_ytdlp(args: argparse.Namespace, config: YTManagerConfig) -> int:
-    """Downloads the official standalone yt-dlp.exe binary into scripts/yt-dlp.exe."""
-    import urllib.request
-
-    scripts_dir = config.base_dir / "scripts"
-    scripts_dir.mkdir(parents=True, exist_ok=True)
-    target_exe = scripts_dir / "yt-dlp.exe"
-
-    url = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
-    print(f"\n[Setup] Downloading portable yt-dlp.exe from {url}...")
-    print(f"[Setup] Target destination: {target_exe}")
-
-    try:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            total_bytes = int(resp.headers.get("Content-Length", 0))
-            downloaded = 0
-            with open(target_exe, "wb") as f:
-                while chunk := resp.read(65536):
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if total_bytes > 0:
-                        pct = (downloaded / total_bytes) * 100
-                        print(f"\r[Setup] Progress: {pct:.1f}% ({downloaded / 1024 / 1024:.1f} MB / {total_bytes / 1024 / 1024:.1f} MB)", end="", flush=True)
-        print(f"\n[Setup] SUCCESS: yt-dlp.exe installed at {target_exe}\n")
+    if not failed_clips:
+        print("[Retry] No failed clips requiring retry. System state is clean.")
         return 0
-    except Exception as e:
-        print(f"\n[Setup] ERROR: Could not download yt-dlp.exe: {e}\n")
-        return 1
+
+    print(f"[Retry] Found {len(failed_clips)} clip(s) to retry:")
+    for c in failed_clips:
+        print(f"  - Clip ID: {c['id']} | Filename: {c['original_filename']} | Status: {c['status']}")
+
+    recovered = 0
+    for c in failed_clips:
+        batch_id = c["batch_id"]
+        # Search for file in processing or failed directory
+        cand_processing = config.processing_dir / batch_id / c["original_filename"]
+        cand_failed = config.failed_dir / batch_id / c["original_filename"]
+        cand_inbox = config.inbox_dir / c["original_filename"]
+
+        target_file = None
+        if cand_processing.exists():
+            target_file = cand_processing
+        elif cand_failed.exists():
+            # Move back to processing
+            cand_processing.parent.mkdir(parents=True, exist_ok=True)
+            import shutil
+            shutil.move(str(cand_failed), str(cand_processing))
+            target_file = cand_processing
+        elif cand_inbox.exists():
+            target_file = cand_inbox
+
+        if not target_file or not target_file.exists():
+            print(f"[Retry] Error: Source video file not found for clip {c['id']}.")
+            continue
+
+        res = orchestrator._process_single_clip(
+            batch_id=batch_id,
+            clip_id=c["id"],
+            index=1,
+            video_path=target_file,
+        )
+        if res.upload_status == "SUCCESS":
+            recovered += 1
+
+    print(f"\n[Retry] Completed: {recovered}/{len(failed_clips)} clip(s) recovered and verified on YouTube.")
+    return 0 if recovered == len(failed_clips) else 1
 
 
 def main() -> None:
@@ -403,6 +204,10 @@ def main() -> None:
     # run
     run_parser = subparsers.add_parser("run", help="Run the daily 6:00 PM IST upload batch")
     run_parser.add_argument("--mock", action="store_true", help="Run in mock mode without live YouTube calls")
+
+    # retry
+    retry_parser = subparsers.add_parser("retry", help="Retry failed or incomplete uploads from recent batches")
+    retry_parser.add_argument("--mock", action="store_true", help="Run retry in mock mode without live YouTube calls")
 
     # auth
     auth_parser = subparsers.add_parser("auth", help="Authenticate with Google OAuth 2.0 and verify channel")
@@ -426,35 +231,16 @@ def main() -> None:
     daemon_parser = subparsers.add_parser("daemon", help="Run background scheduler daemon")
     daemon_parser.add_argument("--mock", action="store_true", help="Run daemon with mock uploads")
 
-    # harvest
-    harvest_parser = subparsers.add_parser("harvest", help="Harvest, clean & stage Pinterest motion-graphic clips")
-    harvest_parser.add_argument("--board", type=str, default="", help="Pinterest Board URL to harvest")
-    harvest_parser.add_argument("--pin", type=str, default="", help="Single Pinterest Pin URL to harvest")
-    harvest_parser.add_argument("--pins", nargs="+", default=[], help="Multiple Pinterest Pin URLs to evaluate or stage")
-    harvest_parser.add_argument("--count", type=int, default=2, help="Target number of clips to stage (default 2)")
-    harvest_parser.add_argument("--local", action="store_true", help="Evaluate/stage candidate video clips from local inbox/ directory")
-    harvest_parser.add_argument("--files", nargs="+", default=[], help="Evaluate/stage specific local video file paths")
-    harvest_parser.add_argument("--evaluate", action="store_true", help="Evaluate and rank all candidate clips")
-    harvest_parser.add_argument("--select-best", action="store_true", help="Select and stage only the top-ranked candidate")
-    harvest_parser.add_argument("--test-upload", action="store_true", help="Immediately test-upload staged video to YouTube")
-    harvest_parser.add_argument("--mock", action="store_true", help="Run upload in mock mode without live YouTube calls")
-    harvest_parser.add_argument("--no-clean-bgm", action="store_true", help="Skip BGM removal")
-    harvest_parser.add_argument("--no-mask", action="store_true", help="Skip watermark masking")
-
-    # setup-ytdlp
-    subparsers.add_parser("setup-ytdlp", help="Download official standalone yt-dlp.exe into scripts/")
-
     args = parser.parse_args()
 
     dispatch = {
         "run": cmd_run,
+        "retry": cmd_retry,
         "auth": cmd_auth,
         "test-upload": cmd_test_upload,
         "status": cmd_status,
         "schedule": cmd_schedule,
         "daemon": cmd_daemon,
-        "harvest": cmd_harvest,
-        "setup-ytdlp": cmd_setup_ytdlp,
     }
 
     handler = dispatch.get(args.command)

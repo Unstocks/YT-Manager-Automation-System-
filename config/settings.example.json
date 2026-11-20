@@ -11,6 +11,7 @@
     "privacy_status": "public",
     "default_category_id": "28",
     "default_language": "en",
+    "allow_deterministic_excess": false,
     "enable_toast_notifications": true,
     "enable_console_notifications": true,
     "webhook_url": ""

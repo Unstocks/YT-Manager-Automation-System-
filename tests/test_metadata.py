@@ -20,15 +20,15 @@ class TestSEOMetadataGenerator(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_metadata_structure(self):
+    def test_metadata_structure_shorts(self):
         understanding = ContentUnderstanding(
             subject="Engineering Decision Making",
-            central_topic="Structured Problem Solving Methods",
-            on_screen_text=["Did You Know?", "35,000 decisions every single day"],
+            central_topic="Structured Problem Solving",
+            on_screen_text=["Key Insight", "Decisions become sharper with structure"],
             spoken_dialogue="",
             entities=["Decision Architecture", "Problem Solving", "Unstocks"],
             intended_audience="Software Engineers & Architects",
-            main_takeaway="Decision making is a trained skill improved via structured methods.",
+            main_takeaway="Decision-making is a trained skill improved via structured methods.",
             category_id="27",
             category_name="Education",
             language="en",
@@ -45,15 +45,15 @@ class TestSEOMetadataGenerator(unittest.TestCase):
 
         # Title checks
         self.assertIn("Problem Solving", metadata.title)
+        self.assertIn("#Shorts", metadata.title)
         self.assertLessEqual(len(metadata.title), 100)
 
         # Description checks
-        self.assertIn("35,000 decisions", metadata.description)
         self.assertIn("About Unstocks:", metadata.description)
-        self.assertIn("#ProblemSolving", metadata.description)
+        self.assertIn("structured problem solving", metadata.description.lower())
+        self.assertTrue(len(metadata.hashtags) >= 2)
 
         # Tags check
-        self.assertIn("problem solving methods", metadata.tags)
         self.assertIn("unstocks", metadata.tags)
         self.assertLessEqual(sum(len(t) for t in metadata.tags), 500)
 
@@ -68,6 +68,32 @@ class TestSEOMetadataGenerator(unittest.TestCase):
         meta_file = self.generator.save_metadata(metadata)
         self.assertTrue(meta_file.exists())
         self.assertGreater(meta_file.stat().st_size, 0)
+
+    def test_metadata_structure_landscape(self):
+        understanding = ContentUnderstanding(
+            subject="Distributed Cache Invalidation",
+            central_topic="Cache Invalidation Patterns",
+            entities=["Redis", "Distributed Systems", "Unstocks"],
+            intended_audience="Backend Engineers",
+            main_takeaway="Two-phase invalidation prevents stale reads in distributed clusters.",
+            category_id="28",
+            category_name="Science & Technology",
+            language="en",
+            is_short=False,
+            confidence=0.95,
+        )
+
+        metadata = self.generator.generate(
+            batch_id="batch_20261120_180000",
+            clip_id="batch_20261120_180000_clip_02",
+            original_filename="distributed_cache.mp4",
+            understanding=understanding,
+        )
+
+        self.assertIn("Cache Invalidation", metadata.title)
+        self.assertNotIn("#Shorts", metadata.title)
+        self.assertEqual(metadata.category_id, "28")
+        self.assertIn("redis", metadata.tags)
 
 
 if __name__ == "__main__":

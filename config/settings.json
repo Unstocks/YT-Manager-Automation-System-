@@ -2,7 +2,7 @@
     "channel_id": "UCT0tm0KSB2BlIjdY6uUZCeA",
     "channel_url": "https://youtube.com/@unstocks",
     "channel_name": "Unstocks",
-    "schedule_time": "17:00",
+    "schedule_time": "18:00",
     "timezone": "Asia/Kolkata",
     "utc_offset_hours": 5.5,
     "daily_clip_count": 2,
@@ -11,6 +11,7 @@
     "privacy_status": "public",
     "default_category_id": "28",
     "default_language": "en",
+    "allow_deterministic_excess": false,
     "enable_toast_notifications": true,
     "enable_console_notifications": true,
     "webhook_url": ""
