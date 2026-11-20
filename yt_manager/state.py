@@ -81,6 +81,14 @@ class StateManager:
                 timestamp TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS harvested_pins (
+                pin_id TEXT PRIMARY KEY,
+                pin_url TEXT NOT NULL,
+                video_url TEXT,
+                harvested_at TEXT NOT NULL,
+                status TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_clips_batch ON clips(batch_id);
             CREATE INDEX IF NOT EXISTS idx_clips_hash ON clips(file_hash);
             CREATE INDEX IF NOT EXISTS idx_batches_date ON batches(execution_date);
@@ -256,6 +264,27 @@ class StateManager:
                 (batch_id,),
             )
             return [dict(row) for row in cursor.fetchall()]
+
+    def is_pin_harvested(self, pin_id: str) -> bool:
+        """Checks if a Pinterest pin was previously harvested."""
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT 1 FROM harvested_pins WHERE pin_id = ?", (pin_id,))
+            return cursor.fetchone() is not None
+
+    def record_harvested_pin(
+        self, pin_id: str, pin_url: str, video_url: str = "", status: str = "HARVESTED"
+    ) -> None:
+        """Records a Pinterest pin as processed to prevent duplicate downloads."""
+        now = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO harvested_pins (pin_id, pin_url, video_url, harvested_at, status)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(pin_id) DO UPDATE SET status = excluded.status
+                """,
+                (pin_id, pin_url, video_url, now, status),
+            )
 
     def log(self, batch_id: Optional[str], level: str, message: str) -> None:
         now = datetime.now(timezone.utc).isoformat()
