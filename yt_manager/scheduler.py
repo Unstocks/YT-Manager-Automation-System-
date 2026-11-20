@@ -26,31 +26,77 @@ class TaskSchedulerManager:
 
     def install_windows_task(self) -> bool:
         """
-        Registers a persistent Windows Scheduled Task that executes daily at 18:00 IST.
+        Registers a persistent Windows Scheduled Task that executes daily at schedule_time IST.
         Survives application restarts and Windows restarts.
+        Handles standard user permissions cleanly without requiring Administrator elevation.
         """
         python_exe = sys.executable
-        project_dir = self.config.base_dir
+        project_dir = str(self.config.base_dir).replace('"', '`"')
 
+        # Attempt 1: PowerShell ScheduledTask with current user scope
         ps_script = f"""
         $action = New-ScheduledTaskAction -Execute "{python_exe}" -Argument "-m yt_manager run" -WorkingDirectory "{project_dir}"
         $t1 = New-ScheduledTaskTrigger -Daily -At {self.config.schedule_time}
-        $t2 = New-ScheduledTaskTrigger -AtLogOn
         $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
-        Register-ScheduledTask -TaskName "{TASK_NAME}" -Action $action -Trigger @($t1, $t2) -Settings $settings -Description "YT Manager Autonomous Daily YouTube Upload and Opportunistic Catch-Up" -Force
+        $principal = New-ScheduledTaskPrincipal -UserId "$env:USERNAME" -LogonType Interactive
+
+        try {{
+            $t2 = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERNAME"
+            Register-ScheduledTask -TaskName "{TASK_NAME}" -Action $action -Trigger @($t1, $t2) -Settings $settings -Principal $principal -Description "YT Manager Autonomous Daily YouTube Upload" -Force | Out-Null
+            Write-Output "SUCCESS_DUAL"
+        }} catch {{
+            try {{
+                Register-ScheduledTask -TaskName "{TASK_NAME}" -Action $action -Trigger $t1 -Settings $settings -Principal $principal -Description "YT Manager Autonomous Daily YouTube Upload" -Force | Out-Null
+                Write-Output "SUCCESS_DAILY"
+            }} catch {{
+                Write-Output "ERROR: $($_.Exception.Message)"
+            }}
+        }}
         """
         try:
             res = subprocess.run(
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
                 capture_output=True,
                 text=True,
-                check=True,
             )
-            print(f"[Scheduler] Windows Scheduled Task '{TASK_NAME}' registered with Dual Triggers: Daily at {self.config.schedule_time} + Opportunistic Catch-Up on Logon.")
-            return True
-        except subprocess.CalledProcessError as e:
-            print(f"[Scheduler] Warning: Failed to register Windows Scheduled Task: {e.stderr}")
-            return False
+            output = res.stdout.strip()
+            if "SUCCESS_DUAL" in output:
+                print(f"[Scheduler] Windows Scheduled Task '{TASK_NAME}' registered successfully (Daily at {self.config.schedule_time} IST + Logon Catch-Up).")
+                return True
+            elif "SUCCESS_DAILY" in output:
+                print(f"[Scheduler] Windows Scheduled Task '{TASK_NAME}' registered successfully (Daily at {self.config.schedule_time} IST with Catch-Up).")
+                return True
+        except Exception:
+            pass
+
+        # Attempt 2: Fallback to native Windows schtasks.exe (works for standard users)
+        cmd = [
+            "schtasks",
+            "/create",
+            "/tn",
+            TASK_NAME,
+            "/tr",
+            f'"{python_exe}" -m yt_manager run',
+            "/sc",
+            "daily",
+            "/st",
+            self.config.schedule_time,
+            "/f",
+        ]
+        try:
+            sub_res = subprocess.run(cmd, capture_output=True, text=True)
+            if sub_res.returncode == 0:
+                print(f"[Scheduler] Windows Scheduled Task '{TASK_NAME}' registered successfully via schtasks (Daily at {self.config.schedule_time} IST).")
+                return True
+            else:
+                err_msg = sub_res.stderr.strip() or sub_res.stdout.strip()
+                print(f"[Scheduler] Warning: Failed to register Windows Scheduled Task: {err_msg}")
+        except Exception as ex:
+            print(f"[Scheduler] Fallback error: {ex}")
+
+        print("\n[Scheduler TIP] If Windows permissions are restricted on your account, open PowerShell as Administrator and run:")
+        print("  python -m yt_manager schedule --install\n")
+        return False
 
     def uninstall_windows_task(self) -> bool:
         """Unregisters the scheduled task."""
