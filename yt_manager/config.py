@@ -19,7 +19,7 @@ class YTManagerConfig:
     channel_name: str = "Unstocks"
 
     # Scheduling
-    schedule_time: str = "18:00"  # 6:00 PM IST
+    schedule_time: str = "17:00"  # 5:00 PM IST
     timezone: str = "Asia/Kolkata"
     utc_offset_hours: float = 5.5
     daily_clip_count: int = 2
