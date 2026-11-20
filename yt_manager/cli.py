@@ -108,6 +108,8 @@ def cmd_status(args: argparse.Namespace, config: YTManagerConfig) -> int:
     print(f"Windows Task Status : {task_status}")
     pin_status = config.pinterest_board_url if config.pinterest_board_url else "Not Configured (Optional Mobile Source)"
     print(f"Pinterest Board     : {pin_status}")
+    comment_status = "ENABLED (Dynamic SEO & CTA Question)" if config.enable_creator_comment else "DISABLED"
+    print(f"Creator First-Comment: {comment_status}")
     print(f"Inbox Directory     : {config.inbox_dir}")
     print(f"Clips in Inbox      : {len(inbox_files)} / {config.daily_clip_count} required")
     for f in inbox_files:

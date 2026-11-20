@@ -175,6 +175,21 @@ class TestSEOMetadataGenerator(unittest.TestCase):
         self.assertNotIn("software architecture", metadata.tags)
         self.assertNotIn("engineering leadership", metadata.tags)
 
+    def test_generate_creator_comment(self):
+        from yt_manager.metadata import generate_creator_comment
+        understanding = ContentUnderstanding(
+            subject="Kubernetes Pod Networking",
+            central_topic="CNI and iptables routing",
+            summary="A deep dive into container network interfaces and packet filtering.",
+            main_takeaway="eBPF reduces latency compared to standard kube-proxy iptables rules.",
+            entities=["Kubernetes", "eBPF", "Networking"],
+            is_short=True,
+        )
+        comment = generate_creator_comment(understanding)
+        self.assertIn("eBPF reduces latency", comment)
+        self.assertIn("cni and iptables routing", comment.lower())
+        self.assertIn("@unstocks", comment)
+
 
 if __name__ == "__main__":
     unittest.main()

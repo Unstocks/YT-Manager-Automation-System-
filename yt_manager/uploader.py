@@ -273,3 +273,49 @@ class YouTubeUploader:
                     raise RuntimeError(f"Network error during upload at offset {offset}: {e}")
 
         raise RuntimeError("Upload ended unexpectedly without server confirmation.")
+
+    def post_comment(self, video_id: str, text: str) -> Optional[str]:
+        """
+        Posts a creator top-level comment on the uploaded video to boost early engagement.
+        Returns the comment ID if successful, or None if failed/mocked.
+        """
+        if not video_id or not text.strip():
+            return None
+
+        if self.mock_mode:
+            return f"mock_comment_{video_id}"
+
+        try:
+            token = self.auth.get_valid_access_token()
+            url = "https://www.googleapis.com/youtube/v3/commentThreads?part=snippet"
+            payload = {
+                "snippet": {
+                    "videoId": video_id,
+                    "topLevelComment": {
+                        "snippet": {
+                            "textOriginal": text
+                        }
+                    }
+                }
+            }
+            body = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=body,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=self.config.api_request_timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return data.get("id")
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="replace")
+            if e.code == 403 and "insufficientPermissions" in err_body:
+                print("\n[Comment] Note: Automatic comment posting requires 'youtube.force-ssl' scope.")
+                print("[Comment] Run 'python -m yt_manager auth' to re-authenticate with comment permissions.\n")
+            return None
+        except Exception:
+            return None

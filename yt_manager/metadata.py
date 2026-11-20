@@ -255,3 +255,16 @@ class SEOMetadataGenerator:
         with open(target_path, "w", encoding="utf-8") as f:
             json.dump(metadata.to_dict(), f, indent=4)
         return target_path
+
+
+def generate_creator_comment(understanding: ContentUnderstanding) -> str:
+    """
+    Generates a high-engagement creator first-comment for YouTube algorithm distribution.
+    Prompts viewers with a content-specific question and includes the channel subscription CTA.
+    """
+    topic = understanding.central_topic or understanding.subject or "this topic"
+    cta = "👉 Subscribe to @unstocks for daily engineering breakdowns and system architecture deep dives!"
+    if understanding.main_takeaway:
+        return f"💡 Key Takeaway: {understanding.main_takeaway}\n\nWhat's your take on {topic.lower()}? Drop your thoughts below!\n\n{cta}"
+    else:
+        return f"💡 What are your thoughts on {topic.lower()}? Share your perspective in the comments below!\n\n{cta}"

@@ -60,6 +60,10 @@ class YTManagerConfig:
     # Pinterest Curation Config
     pinterest_board_url: str = ""
 
+    # Creator First-Comment Config
+    enable_creator_comment: bool = True
+    creator_comment_template: str = ""
+
     def __post_init__(self) -> None:
         self.inbox_dir = self.base_dir / "inbox"
         self.processing_dir = self.base_dir / "processing"
@@ -135,6 +139,8 @@ class YTManagerConfig:
             enable_console_notifications=bool(loaded_data.get("enable_console_notifications", True)),
             webhook_url=loaded_data.get("webhook_url", ""),
             pinterest_board_url=loaded_data.get("pinterest_board_url", ""),
+            enable_creator_comment=bool(loaded_data.get("enable_creator_comment", True)),
+            creator_comment_template=str(loaded_data.get("creator_comment_template", "")),
         )
         return config
 
@@ -160,6 +166,8 @@ class YTManagerConfig:
                 "enable_console_notifications": self.enable_console_notifications,
                 "webhook_url": self.webhook_url,
                 "pinterest_board_url": self.pinterest_board_url,
+                "enable_creator_comment": self.enable_creator_comment,
+                "creator_comment_template": self.creator_comment_template,
             }
             with open(settings_file, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=4)

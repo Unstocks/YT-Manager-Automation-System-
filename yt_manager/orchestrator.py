@@ -376,7 +376,23 @@ class WorkflowOrchestrator:
                     error_message=err_msg,
                 )
 
-            # 6. Save Records and Move to Uploaded
+            # 6. Post Creator Engagement Comment
+            if getattr(self.config, "enable_creator_comment", True):
+                try:
+                    from .metadata import generate_creator_comment
+                    custom_template = getattr(self.config, "creator_comment_template", "")
+                    comment_text = custom_template if custom_template else generate_creator_comment(understanding)
+                    comment_id = self.uploader.post_comment(upload_result.video_id, comment_text)
+                    if comment_id:
+                        self.state.log(
+                            batch_id,
+                            "INFO",
+                            f"Posted creator engagement comment on {upload_result.video_id}: {comment_id}",
+                        )
+                except Exception as e:
+                    self.state.log(batch_id, "WARNING", f"Failed to post creator comment: {e}")
+
+            # 7. Save Records and Move to Uploaded
             file_hash = self.detector.validate_clip(video_path).file_hash
             self.state.record_successful_upload(
                 file_hash=file_hash,

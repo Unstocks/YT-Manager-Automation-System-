@@ -89,6 +89,14 @@ class TestUploaderAndVerifier(unittest.TestCase):
         with self.assertRaises(ChannelMismatchError):
             uploader.upload_video(video_path, meta)
 
+    def test_post_comment_mock(self):
+        comment_id = self.uploader.post_comment("mock_video_999", "Great insight on system design!")
+        self.assertEqual(comment_id, "mock_comment_mock_video_999")
+
+        # Empty video_id or empty comment should return None
+        self.assertIsNone(self.uploader.post_comment("", "Comment"))
+        self.assertIsNone(self.uploader.post_comment("mock_video_999", "   "))
+
 
 if __name__ == "__main__":
     unittest.main()
