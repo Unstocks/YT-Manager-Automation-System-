@@ -156,24 +156,28 @@ class WorkflowOrchestrator:
             )
             return report
 
-        # Pre-flight Telegram mobile video ingestion if enabled
-        if getattr(self.config, "enable_telegram_ingest", False) and getattr(self.config, "telegram_bot_token", ""):
-            try:
-                from .telegram_bot import TelegramIngestionBot
-                tg_bot = TelegramIngestionBot(self.config)
-                ingested = tg_bot.poll_once()
-                if ingested > 0:
-                    self.notifier.notify(
-                        event="TELEGRAM_INGEST",
-                        title="Telegram Mobile Clips Ingested",
-                        message=f"Successfully received {ingested} clip(s) from Telegram into inbox.",
-                        level="INFO",
-                    )
-            except Exception as e:
-                self.state.log(None, "WARNING", f"Pre-flight Telegram ingest check failed: {e}")
-
         # 2. Check Daily Input Folder & Validate
         detection = self.detector.evaluate_daily_batch(date_str=today_date_str)
+
+        # Pre-flight auto-harvest from Pinterest board if inbox is insufficient
+        if detection.status == "INSUFFICIENT" and self.config.pinterest_board_url:
+            missing_count = self.config.daily_clip_count - len(detection.clips)
+            try:
+                from .pinterest_harvester import PinterestHarvester
+                harvester = PinterestHarvester(self.config, self.state)
+                harvested = harvester.run_pre_upload_harvest(
+                    board_url=self.config.pinterest_board_url,
+                    target_count=missing_count,
+                )
+                if harvested:
+                    self.state.log(
+                        None,
+                        "INFO",
+                        f"Auto-harvested {len(harvested)} clip(s) from Pinterest board {self.config.pinterest_board_url}",
+                    )
+                    detection = self.detector.evaluate_daily_batch(date_str=today_date_str)
+            except Exception as e:
+                self.state.log(None, "WARNING", f"Auto-harvest from Pinterest board failed: {e}")
 
         if detection.status == "INSUFFICIENT":
             self.notifier.notify_inbox_incomplete(len(detection.clips), self.config.daily_clip_count)

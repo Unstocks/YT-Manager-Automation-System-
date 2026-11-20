@@ -15,7 +15,5 @@
     "enable_toast_notifications": true,
     "enable_console_notifications": true,
     "webhook_url": "",
-    "telegram_bot_token": "9097348789:AAF27o5Y0UcJxYqJuqCv0YrfWfbmo44RoaU",
-    "telegram_chat_id": "6752289532",
-    "enable_telegram_ingest": true
+    "pinterest_board_url": ""
 }

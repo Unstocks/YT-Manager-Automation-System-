@@ -149,17 +149,6 @@ class Notifier:
         # 4. Webhook (if enabled)
         self._send_webhook(title, message, level)
 
-        # 5. Telegram Mobile Push Notification (if paired)
-        if getattr(self.config, "telegram_bot_token", "") and getattr(self.config, "telegram_chat_id", ""):
-            try:
-                from .telegram_bot import TelegramIngestionBot
-                TelegramIngestionBot(self.config).send_message(
-                    self.config.telegram_chat_id,
-                    f"📢 *YT Manager — {title}*\n\n{message}"
-                )
-            except Exception:
-                pass
-
     def notify_inbox_incomplete(self, current_count: int, required_count: int) -> None:
         self.notify(
             event="INBOX_INCOMPLETE",

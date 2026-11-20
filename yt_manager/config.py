@@ -57,10 +57,8 @@ class YTManagerConfig:
     enable_console_notifications: bool = True
     webhook_url: str = ""
 
-    # Telegram Mobile Ingest & Command Config
-    telegram_bot_token: str = ""
-    telegram_chat_id: str = ""
-    enable_telegram_ingest: bool = False
+    # Pinterest Curation Config
+    pinterest_board_url: str = ""
 
     def __post_init__(self) -> None:
         self.inbox_dir = self.base_dir / "inbox"
@@ -118,14 +116,6 @@ class YTManagerConfig:
         if env_gemini_key:
             loaded_data["gemini_api_key"] = env_gemini_key
 
-        env_telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
-        if env_telegram_token:
-            loaded_data["telegram_bot_token"] = env_telegram_token
-
-        env_telegram_chat = os.environ.get("TELEGRAM_CHAT_ID")
-        if env_telegram_chat:
-            loaded_data["telegram_chat_id"] = env_telegram_chat
-
         config = cls(
             channel_id=loaded_data.get("channel_id", "UCT0tm0KSB2BlIjdY6uUZCeA"),
             channel_url=loaded_data.get("channel_url", "https://youtube.com/@unstocks"),
@@ -144,26 +134,9 @@ class YTManagerConfig:
             enable_toast_notifications=bool(loaded_data.get("enable_toast_notifications", True)),
             enable_console_notifications=bool(loaded_data.get("enable_console_notifications", True)),
             webhook_url=loaded_data.get("webhook_url", ""),
-            telegram_bot_token=loaded_data.get("telegram_bot_token", ""),
-            telegram_chat_id=str(loaded_data.get("telegram_chat_id", "")),
-            enable_telegram_ingest=bool(loaded_data.get("enable_telegram_ingest", False)),
+            pinterest_board_url=loaded_data.get("pinterest_board_url", ""),
         )
         return config
-
-    def update_setting(self, key: str, value: Any) -> None:
-        """Dynamically update a setting in-memory and write back to settings.json."""
-        setattr(self, key, value)
-        settings_file = self.config_dir / "settings.json"
-        data = {}
-        if settings_file.exists():
-            try:
-                with open(settings_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-            except Exception:
-                pass
-        data[key] = value
-        with open(settings_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4)
 
     def save_default_settings(self) -> None:
         """Write default settings.json if it doesn't already exist."""
@@ -186,9 +159,7 @@ class YTManagerConfig:
                 "enable_toast_notifications": self.enable_toast_notifications,
                 "enable_console_notifications": self.enable_console_notifications,
                 "webhook_url": self.webhook_url,
-                "telegram_bot_token": self.telegram_bot_token,
-                "telegram_chat_id": self.telegram_chat_id,
-                "enable_telegram_ingest": self.enable_telegram_ingest,
+                "pinterest_board_url": self.pinterest_board_url,
             }
             with open(settings_file, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=4)

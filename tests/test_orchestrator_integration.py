@@ -73,6 +73,44 @@ class TestOrchestratorIntegration(unittest.TestCase):
         second_run = self.orchestrator.run_daily_batch(force_date="2026-11-20")
         self.assertEqual(second_run.execution_status, "COMPLETED (PRIOR RUN)")
 
+    def test_auto_harvest_when_inbox_insufficient(self):
+        # Configure Pinterest board
+        self.config.pinterest_board_url = "https://pinterest.com/unstocks/daily-shorts"
+        inbox = self.config.inbox_dir
+
+        # Inbox is initially empty
+        self.assertEqual(len(list(inbox.glob("*.mp4"))), 0)
+
+        # Mock run_pre_upload_harvest to place 2 valid video files in inbox
+        from unittest.mock import patch
+        from yt_manager.pinterest_harvester import HarvestedCandidate
+
+        def mock_harvest(board_url, target_count=2, clean_bgm=True, mask_watermark=True):
+            if SAMPLE_VIDEO_PATH.exists():
+                clip1 = inbox / "unstocks_short_pin_101.mp4"
+                shutil.copy2(str(SAMPLE_VIDEO_PATH), str(clip1))
+                clip2 = inbox / "unstocks_short_pin_102.mp4"
+                clip2.write_bytes(SAMPLE_VIDEO_PATH.read_bytes() + b"\x01")
+            else:
+                clip1 = inbox / "unstocks_short_pin_101.mp4"
+                clip1.write_bytes(b"dummy1")
+                clip2 = inbox / "unstocks_short_pin_102.mp4"
+                clip2.write_bytes(b"dummy2")
+            return [
+                HarvestedCandidate(pin_id="pin_101", pin_url="http://p1", video_url="http://v1", raw_video_path=Path(""), final_inbox_path=clip1, status="READY"),
+                HarvestedCandidate(pin_id="pin_102", pin_url="http://p2", video_url="http://v2", raw_video_path=Path(""), final_inbox_path=clip2, status="READY"),
+            ]
+
+        with patch("yt_manager.pinterest_harvester.PinterestHarvester.run_pre_upload_harvest", side_effect=mock_harvest):
+            report = self.orchestrator.run_daily_batch(force_date="2026-11-21")
+
+        self.assertEqual(report.execution_status, "COMPLETED")
+        self.assertEqual(report.clips_received, 2)
+        self.assertEqual(report.successfully_uploaded, 2)
+        self.assertEqual(report.failed, 0)
+        # Inbox should be empty after processing
+        self.assertEqual(len(list(inbox.glob("*.mp4"))), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
