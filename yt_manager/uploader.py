@@ -63,23 +63,28 @@ class YouTubeUploader:
         metadata: VideoMetadata,
         access_token: str,
         privacy_status: Optional[str] = None,
+        publish_at: Optional[str] = None,
     ) -> str:
         """
         Sends initial metadata POST to YouTube API to obtain the unique resumable upload URL.
+        Supports scheduled cloud publishing via publishAt parameter.
         """
         file_size = video_path.stat().st_size
         mime_type, _ = mimetypes.guess_type(str(video_path))
         mime_type = mime_type or "video/mp4"
 
         effective_privacy = privacy_status or self.config.privacy_status
+        status_payload: Dict[str, Any] = {
+            "privacyStatus": "private" if publish_at else effective_privacy,
+            "selfDeclaredMadeForKids": False,
+            "embeddable": True,
+        }
+        if publish_at:
+            status_payload["publishAt"] = publish_at
 
         body_payload = {
             "snippet": metadata.to_youtube_snippet_payload(),
-            "status": {
-                "privacyStatus": effective_privacy,
-                "selfDeclaredMadeForKids": False,
-                "embeddable": True,
-            },
+            "status": status_payload,
         }
 
         req = urllib.request.Request(
@@ -137,9 +142,11 @@ class YouTubeUploader:
         metadata: VideoMetadata,
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
         privacy_status: Optional[str] = None,
+        publish_at: Optional[str] = None,
     ) -> UploadResult:
         """
         Performs the complete resumable upload of video_path with associated metadata.
+        Optionally supports scheduled cloud publishing (publish_at).
         """
         start_time = time.time()
         file_size = video_path.stat().st_size
@@ -163,10 +170,10 @@ class YouTubeUploader:
                 success=True,
                 video_id=mock_id,
                 youtube_url=youtube_url,
-                privacy_status=privacy_status or self.config.privacy_status,
+                privacy_status="private" if publish_at else (privacy_status or self.config.privacy_status),
                 bytes_uploaded=file_size,
                 duration_seconds=time.time() - start_time,
-                raw_response={"id": mock_id, "mock": True},
+                raw_response={"id": mock_id, "mock": True, "publishAt": publish_at},
             )
 
         # 1. Channel verification & Auth
@@ -175,7 +182,7 @@ class YouTubeUploader:
 
         # 2. Initiate resumable upload session
         upload_url = self._initiate_resumable_session(
-            video_path, metadata, access_token, privacy_status=privacy_status
+            video_path, metadata, access_token, privacy_status=privacy_status, publish_at=publish_at
         )
 
         # 3. Stream chunks with resume capability
