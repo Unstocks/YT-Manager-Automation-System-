@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import shutil
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -64,12 +64,23 @@ class WorkflowOrchestrator:
         self.notifier = Notifier(self.config, self.state)
         self.reporter = ReportGenerator(self.config)
 
-    def run_daily_batch(self, force_date: Optional[str] = None) -> DailyBatchReport:
+    def run_daily_batch(
+        self, force_date: Optional[str] = None, force: bool = False
+    ) -> DailyBatchReport:
         """
-        Executes the daily 6:00 PM IST batch workflow.
+        Executes the daily batch workflow in IST (UTC+05:30):
+        1. Pre-flight network health check.
+        2. Daily active window & midnight cutoff check (e.g. 17:00 to 23:59 IST).
+           - Executes if opened anytime in the active window (including 30 or 10 min before 12:00 AM).
+           - If upload fails, clips are safely returned to inbox/ queue.
+           - After 12:00 AM midnight (past 23:59), cleanly shifts to the next day's execution.
+        3. Idempotent check for already completed batch today.
+        4. Detects clips, stages them, uploads to YouTube, verifies, and archives.
         """
-        today_ist = force_date or datetime.now(timezone.utc).strftime("%d %B %Y")
-        today_date_str = force_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        tz = timezone(timedelta(hours=self.config.utc_offset_hours))
+        now_ist = datetime.now(tz)
+        today_ist = force_date or now_ist.strftime("%d %B %Y")
+        today_date_str = force_date or now_ist.strftime("%Y-%m-%d")
 
         # 1. Pre-flight Network Health Check (Skip in mock/test mode)
         if not self.mock_mode and not check_network_connectivity():
@@ -92,7 +103,40 @@ class WorkflowOrchestrator:
                 required_action="Connect laptop to Wi-Fi/Internet; system will automatically resume on next trigger.",
             )
 
-        # 2. Check for already completed batch today (Duplicate-run protection)
+        # 2. Daily Active Window & Midnight Cutoff Check
+        if not self.mock_mode and not force and not force_date:
+            target_hour, target_min = map(int, self.config.schedule_time.split(":"))
+            cutoff_hour, cutoff_min = map(int, self.config.daily_cutoff_time.split(":"))
+            current_minutes = now_ist.hour * 60 + now_ist.minute
+            target_minutes = target_hour * 60 + target_min
+            cutoff_minutes = cutoff_hour * 60 + cutoff_min
+
+            if not (target_minutes <= current_minutes <= cutoff_minutes):
+                time_str = now_ist.strftime("%H:%M")
+                window_msg = (
+                    f"Current time ({time_str} IST) is outside the daily broadcasting window "
+                    f"({self.config.schedule_time} – {self.config.daily_cutoff_time} IST). "
+                    f"Execution safely shifted to today's {self.config.schedule_time} IST window."
+                )
+                self.notifier.notify(
+                    event="WINDOW_DEFERRED",
+                    title="Execution Window Inactive",
+                    message=window_msg,
+                    level="INFO",
+                )
+                return DailyBatchReport(
+                    execution_date=today_ist,
+                    scheduled_time=f"{self.config.schedule_time} {self.config.timezone}",
+                    clips_received=0,
+                    metadata_generated=0,
+                    successfully_uploaded=0,
+                    failed=0,
+                    execution_status="DEFERRED (OUTSIDE_WINDOW)",
+                    failure_details=window_msg,
+                    required_action=f"Clips remain safely queued in inbox; execution will automatically trigger during {self.config.schedule_time} – {self.config.daily_cutoff_time} IST.",
+                )
+
+        # 3. Check for already completed batch today (Duplicate-run protection)
         existing_batch = self.state.get_batch_for_date(today_date_str)
         if existing_batch and existing_batch["status"] == "COMPLETED":
             self.notifier.notify(

@@ -9,7 +9,7 @@ import hashlib
 import os
 import shutil
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -153,8 +153,9 @@ class ClipDetector:
         selected_clips = validated_sorted[:target_count]
         remaining_count = len(validated_sorted) - target_count
 
-        today_date = date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        timestamp_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        tz = timezone(timedelta(hours=self.config.utc_offset_hours))
+        today_date = date_str or datetime.now(tz).strftime("%Y-%m-%d")
+        timestamp_str = datetime.now(tz).strftime("%Y%m%d_%H%M%S")
         batch_id = f"batch_{today_date}_{timestamp_str}"
 
         msg = f"Successfully queued {target_count} clip(s) for daily batch {batch_id}."
@@ -181,7 +182,7 @@ class ClipDetector:
         batch_processing_dir = self.config.processing_dir / batch_id
         batch_processing_dir.mkdir(parents=True, exist_ok=True)
 
-        today_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today_date = batch_id.split("_")[1] if len(batch_id.split("_")) > 1 else datetime.now(timezone(timedelta(hours=self.config.utc_offset_hours))).strftime("%Y-%m-%d")
         self.state.create_batch(batch_id, today_date, len(detection.clips))
 
         staged_paths: List[Path] = []

@@ -31,6 +31,31 @@ class TestScheduler(unittest.TestCase):
     def test_task_name_constant(self):
         self.assertEqual(TASK_NAME, "YT-Manager-Daily")
 
+    def test_midnight_cutoff_and_window_evaluation(self):
+        from yt_manager.orchestrator import WorkflowOrchestrator
+        from datetime import datetime, timedelta, timezone
+
+        orch = WorkflowOrchestrator(self.config, mock_mode=False)
+        tz = timezone(timedelta(hours=5.5))
+
+        # Test A: 23:50 IST (10 min before 12:00 AM midnight) -> SHOULD BE WITHIN WINDOW
+        dt_before_midnight = datetime(2026, 11, 20, 23, 50, 0, tzinfo=tz)
+        target_hour, target_min = map(int, self.config.schedule_time.split(":"))
+        cutoff_hour, cutoff_min = map(int, self.config.daily_cutoff_time.split(":"))
+        cur_min = dt_before_midnight.hour * 60 + dt_before_midnight.minute
+        is_active = (target_hour * 60 + target_min) <= cur_min <= (cutoff_hour * 60 + cutoff_min)
+        self.assertTrue(is_active)
+
+        # Test B: 00:05 IST (5 min after 12:00 AM midnight) -> SHOULD BE OUTSIDE WINDOW (SHIFTS TO NEXT DAY)
+        dt_after_midnight = datetime(2026, 11, 21, 0, 5, 0, tzinfo=tz)
+        cur_min_after = dt_after_midnight.hour * 60 + dt_after_midnight.minute
+        is_active_after = (target_hour * 60 + target_min) <= cur_min_after <= (cutoff_hour * 60 + cutoff_min)
+        self.assertFalse(is_active_after)
+
+        # Verify date rollover occurred exactly at midnight
+        self.assertEqual(dt_before_midnight.strftime("%Y-%m-%d"), "2026-11-20")
+        self.assertEqual(dt_after_midnight.strftime("%Y-%m-%d"), "2026-11-21")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,9 +23,10 @@ from .scheduler import TaskSchedulerManager
 
 def cmd_run(args: argparse.Namespace, config: YTManagerConfig) -> int:
     mock_mode = getattr(args, "mock", False)
+    force = getattr(args, "force", False)
     orchestrator = WorkflowOrchestrator(config, mock_mode=mock_mode)
     print("\n[YT Manager] Starting daily batch execution...")
-    report = orchestrator.run_daily_batch()
+    report = orchestrator.run_daily_batch(force=force)
     text_report = orchestrator.reporter.format_text_report(report)
     print("\n" + text_report)
     return 0 if report.execution_status == "COMPLETED" else 1
@@ -204,6 +205,7 @@ def main() -> None:
     # run
     run_parser = subparsers.add_parser("run", help="Run the daily 6:00 PM IST upload batch")
     run_parser.add_argument("--mock", action="store_true", help="Run in mock mode without live YouTube calls")
+    run_parser.add_argument("--force", action="store_true", help="Force batch execution regardless of daily schedule window")
 
     # retry
     retry_parser = subparsers.add_parser("retry", help="Retry failed or incomplete uploads from recent batches")
