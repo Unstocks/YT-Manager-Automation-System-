@@ -1,0 +1,46 @@
+# Environment & Secrets
+.env
+config/client_secrets.json
+config/token.json
+
+# Local Runtime Directories
+inbox/*
+processing/*
+uploaded/*
+failed/*
+data/*.db
+data/*.sqlite
+logs/*.log
+logs/reports/*
+metadata/*.json
+
+# Binaries & Media Assets
+scripts/*.exe
+scripts/yt-dlp.exe
+scripts/yt-dlp
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.avi
+*.m4v
+*.jpg
+*.jpeg
+*.png
+*.wav
+*.mp3
+*.aac
+
+# Keep directory structures intact
+!.gitkeep
+!config/settings.example.json
+!config/client_secrets.example.json
+!config/settings.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
