@@ -44,6 +44,19 @@ def check_network_connectivity(timeout: float = 3.0) -> bool:
     return False
 
 
+def wait_for_network_connectivity(max_wait_seconds: int = 30, interval: float = 5.0) -> bool:
+    """Waits up to max_wait_seconds for Wi-Fi / Internet connection to become available after system wake/boot."""
+    import time
+    if check_network_connectivity(timeout=2.0):
+        return True
+    deadline = time.time() + max_wait_seconds
+    while time.time() < deadline:
+        time.sleep(interval)
+        if check_network_connectivity(timeout=2.0):
+            return True
+    return False
+
+
 class WorkflowOrchestrator:
     def __init__(
         self,
@@ -82,9 +95,9 @@ class WorkflowOrchestrator:
         today_ist = force_date or now_ist.strftime("%d %B %Y")
         today_date_str = force_date or now_ist.strftime("%Y-%m-%d")
 
-        # 1. Pre-flight Network Health Check (Skip in mock/test mode)
-        if not self.mock_mode and not check_network_connectivity():
-            offline_msg = "No internet connection detected. Batch deferred until network connectivity is restored."
+        # 1. Pre-flight Network Health Check with 30s Wi-Fi handshake grace period (Skip in mock/test mode)
+        if not self.mock_mode and not wait_for_network_connectivity(max_wait_seconds=30):
+            offline_msg = "No internet connection detected after 30s grace period. Batch deferred until network connectivity is restored."
             self.notifier.notify(
                 event="NETWORK_OFFLINE",
                 title="Network Offline — Batch Deferred",

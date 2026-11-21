@@ -56,6 +56,29 @@ class TestScheduler(unittest.TestCase):
         self.assertEqual(dt_before_midnight.strftime("%Y-%m-%d"), "2026-11-20")
         self.assertEqual(dt_after_midnight.strftime("%Y-%m-%d"), "2026-11-21")
 
+    def test_record_test_trigger_event(self):
+        import json
+        proof_file = self.config.data_dir / "trigger_test_proof.json"
+        self.assertFalse(proof_file.exists())
+
+        self.scheduler.record_test_trigger_event()
+        self.assertTrue(proof_file.exists())
+        data = json.loads(proof_file.read_text(encoding="utf-8"))
+        self.assertEqual(data.get("status"), "SUCCESS")
+        self.assertIn("IST", data.get("timestamp"))
+
+    def test_wait_for_network_connectivity(self):
+        from yt_manager.orchestrator import wait_for_network_connectivity
+        from unittest.mock import patch
+
+        # Simulate immediate success
+        with patch("yt_manager.orchestrator.check_network_connectivity", return_value=True):
+            self.assertTrue(wait_for_network_connectivity(max_wait_seconds=2, interval=0.1))
+
+        # Simulate timeout failure
+        with patch("yt_manager.orchestrator.check_network_connectivity", return_value=False):
+            self.assertFalse(wait_for_network_connectivity(max_wait_seconds=1, interval=0.1))
+
 
 if __name__ == "__main__":
     unittest.main()

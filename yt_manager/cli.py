@@ -123,7 +123,14 @@ def cmd_status(args: argparse.Namespace, config: YTManagerConfig) -> int:
 
 def cmd_schedule(args: argparse.Namespace, config: YTManagerConfig) -> int:
     mgr = TaskSchedulerManager(config)
-    if args.install:
+    if getattr(args, "record_test_fire", False):
+        mgr.record_test_trigger_event()
+        return 0
+    elif getattr(args, "test", False):
+        wait_min = getattr(args, "minutes", 2)
+        success = mgr.test_trigger_execution(wait_minutes=wait_min)
+        return 0 if success else 1
+    elif args.install:
         success = mgr.install_windows_task()
         return 0 if success else 1
     elif args.uninstall:
@@ -489,6 +496,9 @@ def main() -> None:
     sched_parser = subparsers.add_parser("schedule", help="Manage Windows Scheduled Task")
     sched_parser.add_argument("--install", action="store_true", help="Install Windows Scheduled Task")
     sched_parser.add_argument("--uninstall", action="store_true", help="Uninstall Windows Scheduled Task")
+    sched_parser.add_argument("--test", action="store_true", help="Run 2-minute real-clock verification test of Windows Task Scheduler")
+    sched_parser.add_argument("--minutes", type=int, default=2, help="Minutes ahead for test trigger (default: 2)")
+    sched_parser.add_argument("--record-test-fire", action="store_true", help="Internal callback to record test trigger fire")
 
     # daemon
     daemon_parser = subparsers.add_parser("daemon", help="Run background scheduler daemon")
