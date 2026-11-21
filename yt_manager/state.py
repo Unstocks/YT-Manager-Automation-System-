@@ -266,9 +266,12 @@ class StateManager:
             return [dict(row) for row in cursor.fetchall()]
 
     def is_pin_harvested(self, pin_id: str) -> bool:
-        """Checks if a Pinterest pin was previously harvested."""
+        """Checks if a Pinterest pin was successfully harvested previously."""
         with self._get_connection() as conn:
-            cursor = conn.execute("SELECT 1 FROM harvested_pins WHERE pin_id = ?", (pin_id,))
+            cursor = conn.execute(
+                "SELECT 1 FROM harvested_pins WHERE pin_id = ? AND status IN ('COMPLETED', 'HARVESTED', 'UPLOADED')",
+                (pin_id,),
+            )
             return cursor.fetchone() is not None
 
     def record_harvested_pin(
