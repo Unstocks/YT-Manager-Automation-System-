@@ -77,7 +77,31 @@ class SEOMetadataGenerator:
         else:
             base_title = f"{topic} Explained"
 
-        suffix = " #Shorts" if understanding.is_short else ""
+        suffix = ""
+        if understanding.is_short:
+            # Extract content hashtag (about the content)
+            content_tag = ""
+            if understanding.entities:
+                for ent in understanding.entities:
+                    clean = re.sub(r'[^a-zA-Z0-9]', '', ent)
+                    if 3 <= len(clean) <= 15 and clean.lower() != "unstocks":
+                        content_tag = clean
+                        break
+            if not content_tag and understanding.central_topic:
+                words = understanding.central_topic.split()
+                clean = re.sub(r'[^a-zA-Z0-9]', '', words[0])
+                if 3 <= len(clean) <= 15:
+                    content_tag = clean
+            if not content_tag and understanding.subject:
+                words = understanding.subject.split()
+                clean = re.sub(r'[^a-zA-Z0-9]', '', words[0])
+                if 3 <= len(clean) <= 15:
+                    content_tag = clean
+            if not content_tag:
+                content_tag = "Tech"
+
+            suffix = f" #{content_tag} #shorts #fyp"
+
         max_base_len = 78 - len(suffix)  # Guarantees final title length <= 78 (< 80 chars)
 
         if len(base_title) > max_base_len:
@@ -141,7 +165,7 @@ class SEOMetadataGenerator:
             f"🌐 Channel: {self.config.channel_url}"
         )
 
-        # 5. Hashtags derived from actual entities
+        # 5. Hashtags derived from actual entities + configurable high-reach presets
         clean_hashtags: List[str] = []
         for e in understanding.entities:
             clean = re.sub(r'[^a-zA-Z0-9]', '', e)
@@ -151,8 +175,18 @@ class SEOMetadataGenerator:
         hashtags = clean_hashtags[:3]
         if "Unstocks" not in hashtags and len(hashtags) < 4:
             hashtags.append("Unstocks")
-        if is_short and "Shorts" not in hashtags:
-            hashtags.append("Shorts")
+
+        # Merge high-reach default hashtags for Shorts
+        if is_short:
+            preset = getattr(
+                self.config,
+                "default_hashtags",
+                ["Shorts", "ytshorts", "ShortsFeed", "fyp", "fypage", "viral"],
+            )
+            for tag in preset:
+                clean_tag = re.sub(r'[^a-zA-Z0-9]', '', tag)
+                if clean_tag and clean_tag.lower() not in [h.lower() for h in hashtags] and len(hashtags) < 9:
+                    hashtags.append(clean_tag)
 
         hashtags_formatted = " ".join([f"#{h}" for h in hashtags])
 

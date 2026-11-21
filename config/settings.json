@@ -17,5 +17,13 @@
     "webhook_url": "",
     "pinterest_board_url": "",
     "enable_creator_comment": true,
-    "creator_comment_template": ""
+    "creator_comment_template": "",
+    "default_hashtags": [
+        "Shorts",
+        "ytshorts",
+        "ShortsFeed",
+        "fyp",
+        "fypage",
+        "viral"
+    ]
 }

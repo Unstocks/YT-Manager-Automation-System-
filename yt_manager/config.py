@@ -8,7 +8,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 @dataclass
@@ -63,6 +63,11 @@ class YTManagerConfig:
     # Creator First-Comment Config
     enable_creator_comment: bool = True
     creator_comment_template: str = ""
+
+    # Viral & Format Hashtag Config for Shorts
+    default_hashtags: List[str] = field(
+        default_factory=lambda: ["Shorts", "ytshorts", "ShortsFeed", "fyp", "fypage", "viral"]
+    )
 
     def __post_init__(self) -> None:
         self.inbox_dir = self.base_dir / "inbox"
@@ -141,6 +146,12 @@ class YTManagerConfig:
             pinterest_board_url=loaded_data.get("pinterest_board_url", ""),
             enable_creator_comment=bool(loaded_data.get("enable_creator_comment", True)),
             creator_comment_template=str(loaded_data.get("creator_comment_template", "")),
+            default_hashtags=list(
+                loaded_data.get(
+                    "default_hashtags",
+                    ["Shorts", "ytshorts", "ShortsFeed", "fyp", "fypage", "viral"],
+                )
+            ),
         )
         return config
 
@@ -168,6 +179,7 @@ class YTManagerConfig:
                 "pinterest_board_url": self.pinterest_board_url,
                 "enable_creator_comment": self.enable_creator_comment,
                 "creator_comment_template": self.creator_comment_template,
+                "default_hashtags": self.default_hashtags,
             }
             with open(settings_file, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=4)
