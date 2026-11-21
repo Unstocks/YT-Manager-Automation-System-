@@ -105,9 +105,24 @@ class PinterestHarvester:
         return clean
 
     def resolve_url(self, url: str) -> str:
-        """Follows redirects with a cookie jar and realistic headers to obtain the real target URL."""
+        """Follows redirects with native curl or cookie jar to obtain the real target URL."""
         if "pin.it" not in url:
             return url
+
+        # Method 1: Try native Windows curl.exe (robust against bot checks & TLS fingerprinting)
+        curl_bin = shutil.which("curl")
+        if curl_bin:
+            try:
+                cmd = [curl_bin, "-s", "-L", "-o", "NUL", "-w", "%{url_effective}", url]
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                resolved = res.stdout.strip()
+                if resolved and "pin.it" not in resolved and resolved.startswith("http"):
+                    print(f"[Harvester] Shortlink {url} resolved via curl -> {resolved}")
+                    return resolved
+            except Exception as e:
+                logger.warning(f"curl resolve failed: {e}")
+
+        # Method 2: Fallback to urllib with realistic headers
         try:
             cj = http.cookiejar.CookieJar()
             opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
