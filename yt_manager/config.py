@@ -138,7 +138,7 @@ class YTManagerConfig:
         loaded_data: Dict[str, Any] = {}
         if settings_file.exists():
             try:
-                with open(settings_file, "r", encoding="utf-8") as f:
+                with open(settings_file, "r", encoding="utf-8-sig") as f:
                     loaded_data = json.load(f)
             except Exception as e:
                 print(f"[Config] Warning: Failed to parse {settings_file}: {e}")

@@ -12,7 +12,7 @@ from yt_manager.pinterest_harvester import PinterestHarvester
 from yt_manager.state import StateManager
 
 REPO_ROOT = Path(__file__).parent.parent
-SAMPLE_VIDEO_PATH = REPO_ROOT / "processing" / "board_evaluation" / "pin_e1_AfqPShw8p3DgrEm3w11C1CRzzsv6NLU_W2352-aGI_ZT26uF-tBoUQ.mp4"
+SAMPLE_VIDEO_PATH = REPO_ROOT / "tests" / "fixtures" / "sample_test_video.mp4"
 
 
 class TestPinterestHarvester(unittest.TestCase):
