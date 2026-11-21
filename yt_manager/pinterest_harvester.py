@@ -450,17 +450,18 @@ class PinterestHarvester:
         """
         Evaluates a downloaded video candidate across duration, resolution, audio,
         and visual motion-graphic clarity.
-        Enforces under 60 seconds (YouTube Shorts duration limit).
+        Enforces under 2 minutes (<= 120.0s) duration limit.
         """
         frames_work_dir = raw_path.parent / f"frames_{raw_path.stem}"
         inspection = self.inspector.inspect(raw_path, work_dir=frames_work_dir)
         dur = inspection.duration_seconds
         is_916 = inspection.is_short
+        max_dur = getattr(self.config, "max_clip_duration_seconds", 120.0)
 
-        # Duration score (YouTube Shorts: strictly under 60.0s)
-        if 15.0 <= dur <= 55.0:
+        # Duration score (Under 2 minutes: optimal 15-90s, valid <= 120s)
+        if 15.0 <= dur <= 90.0:
             dur_score = 100.0
-        elif 5.0 <= dur <= 60.0:
+        elif 5.0 <= dur <= max_dur:
             dur_score = 85.0
         else:
             dur_score = 15.0
@@ -628,8 +629,9 @@ class PinterestHarvester:
         inspection = self.inspector.inspect(raw_download)
         duration = inspection.duration_seconds
 
-        # Strict Gatekeeper Rule: Under 60s duration (YouTube Shorts limit), Vertical format
-        if not (5.0 <= duration <= 60.0):
+        # Strict Gatekeeper Rule: Under 2 minutes (< 120.0s) duration, Vertical format
+        max_dur = getattr(self.config, "max_clip_duration_seconds", 120.0)
+        if not (5.0 <= duration <= max_dur):
             self.state.record_harvested_pin(pin_id, pin_url, video_url, status="REJECTED_DURATION")
             return HarvestedCandidate(
                 pin_id=pin_id,
@@ -638,7 +640,7 @@ class PinterestHarvester:
                 raw_video_path=raw_download,
                 duration_seconds=duration,
                 status="REJECTED_DURATION",
-                error_message=f"Duration {duration:.1f}s exceeds YouTube Shorts limit (must be <= 60.0s).",
+                error_message=f"Duration {duration:.1f}s exceeds limit (must be <= {max_dur:.1f}s / < 2 minutes).",
             )
 
         if not inspection.is_short:

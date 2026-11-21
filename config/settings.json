@@ -15,7 +15,8 @@
     "enable_toast_notifications": true,
     "enable_console_notifications": true,
     "webhook_url": "",
-    "pinterest_board_url": "",
+    "pinterest_board_url": "https://pin.it/3zgj56n0L",
+    "max_clip_duration_seconds": 120.0,
     "enable_creator_comment": true,
     "creator_comment_template": "",
     "default_hashtags": [

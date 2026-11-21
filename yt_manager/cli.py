@@ -244,7 +244,7 @@ def cmd_harvest(args: argparse.Namespace, config: YTManagerConfig) -> int:
         print(" " * 22 + "CANDIDATE EVALUATION MATRIX")
         print("=" * 75)
         for idx, ev in enumerate(evals, 1):
-            dur_label = "Optimal Shorts (15-55s)" if 15 <= ev['duration'] <= 55 else "Valid Shorts (<=60s)" if ev['duration'] <= 60.0 else "Exceeds Shorts (>60s)"
+            dur_label = "Optimal (<2 min)" if 15 <= ev['duration'] <= 90 else "Valid (<2 min)" if ev['duration'] <= 120.0 else "Exceeds 2 min (>120s)"
             aspect_label = "9:16 Shorts" if ev['is_916'] else "Non-Short/Landscape"
             audio_label = f"Present ({ev['audio_codec']})" if ev['has_audio'] else "None"
             print(f"\nCandidate #{idx}: {ev['pin_id']}")
@@ -317,7 +317,7 @@ def cmd_harvest(args: argparse.Namespace, config: YTManagerConfig) -> int:
         print(" " * 22 + "BOARD CANDIDATE EVALUATION MATRIX")
         print("=" * 75)
         for idx, ev in enumerate(evals, 1):
-            dur_label = "Optimal Shorts (15-55s)" if 15 <= ev['duration'] <= 55 else "Valid Shorts (<=60s)" if ev['duration'] <= 60.0 else "Exceeds Shorts (>60s)"
+            dur_label = "Optimal (<2 min)" if 15 <= ev['duration'] <= 90 else "Valid (<2 min)" if ev['duration'] <= 120.0 else "Exceeds 2 min (>120s)"
             aspect_label = "9:16 Shorts" if ev['is_916'] else "Non-Short/Landscape"
             audio_label = f"Present ({ev['audio_codec']})" if ev['has_audio'] else "None"
             print(f"\nCandidate #{idx}: Pin ID {ev['pin_id']}")

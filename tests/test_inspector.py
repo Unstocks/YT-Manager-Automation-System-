@@ -35,7 +35,7 @@ class TestMediaInspector(unittest.TestCase):
         self.assertAlmostEqual(inspection.duration_seconds, 17.88, places=1)
         self.assertEqual(inspection.width, 720)
         self.assertEqual(inspection.height, 1280)
-        self.assertTrue(inspection.is_short, "Vertical video under 60s should qualify as YouTube Short")
+        self.assertTrue(inspection.is_short, "Vertical video under 2 minutes should qualify as YouTube Short")
         self.assertEqual(inspection.video_codec, "h264")
         self.assertTrue(inspection.has_audio)
 

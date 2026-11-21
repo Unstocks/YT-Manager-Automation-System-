@@ -59,6 +59,7 @@ class YTManagerConfig:
 
     # Pinterest Curation Config
     pinterest_board_url: str = ""
+    max_clip_duration_seconds: float = 120.0  # < 2 minutes for YouTube Shorts/reels
 
     # Creator First-Comment Config
     enable_creator_comment: bool = True
@@ -144,6 +145,7 @@ class YTManagerConfig:
             enable_console_notifications=bool(loaded_data.get("enable_console_notifications", True)),
             webhook_url=loaded_data.get("webhook_url", ""),
             pinterest_board_url=loaded_data.get("pinterest_board_url", ""),
+            max_clip_duration_seconds=float(loaded_data.get("max_clip_duration_seconds", 120.0)),
             enable_creator_comment=bool(loaded_data.get("enable_creator_comment", True)),
             creator_comment_template=str(loaded_data.get("creator_comment_template", "")),
             default_hashtags=list(
@@ -177,6 +179,7 @@ class YTManagerConfig:
                 "enable_console_notifications": self.enable_console_notifications,
                 "webhook_url": self.webhook_url,
                 "pinterest_board_url": self.pinterest_board_url,
+                "max_clip_duration_seconds": self.max_clip_duration_seconds,
                 "enable_creator_comment": self.enable_creator_comment,
                 "creator_comment_template": self.creator_comment_template,
                 "default_hashtags": self.default_hashtags,

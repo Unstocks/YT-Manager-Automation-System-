@@ -51,7 +51,7 @@ class TestPinterestHarvester(unittest.TestCase):
         
         # Test inspection
         inspection = self.harvester.inspector.inspect(raw_download)
-        self.assertTrue(5.0 <= inspection.duration_seconds <= 60.0)
+        self.assertTrue(5.0 <= inspection.duration_seconds <= 120.0)
         self.assertTrue(inspection.is_short)
 
         # Stage into inbox

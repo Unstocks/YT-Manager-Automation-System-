@@ -130,8 +130,8 @@ class MediaInspector:
         except Exception:
             fps = 30.0
 
-        # YouTube Shorts criteria: Vertical/Square (aspect ratio <= 1.0) and duration <= 60 seconds
-        is_short = (aspect_ratio <= 1.05) and (duration_sec <= 60.5)
+        # YouTube Shorts criteria: Vertical/Square (aspect ratio <= 1.05) and duration < 2 minutes (<= 120.0s)
+        is_short = (aspect_ratio <= 1.05) and (duration_sec <= 120.5)
 
         frames: List[Path] = []
         audio_path: Optional[Path] = None
