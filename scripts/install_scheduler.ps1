@@ -21,7 +21,7 @@ $TaskName = "YT-Manager-Daily"
 $Action = New-ScheduledTaskAction -Execute $PythonExe -Argument "-m yt_manager run" -WorkingDirectory $ProjectDir
 $TriggerDaily = New-ScheduledTaskTrigger -Daily -At "18:00"
 $TriggerLogon = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERNAME"
-$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -WakeToRun -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
 $Principal = New-ScheduledTaskPrincipal -UserId "$env:USERNAME" -LogonType Interactive
 
 try {

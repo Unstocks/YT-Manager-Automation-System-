@@ -37,7 +37,7 @@ class TaskSchedulerManager:
         ps_script = f"""
         $action = New-ScheduledTaskAction -Execute "{python_exe}" -Argument "-m yt_manager run" -WorkingDirectory "{project_dir}"
         $t1 = New-ScheduledTaskTrigger -Daily -At {self.config.schedule_time}
-        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -WakeToRun -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
         $principal = New-ScheduledTaskPrincipal -UserId "$env:USERNAME" -LogonType Interactive
 
         try {{
@@ -176,7 +176,7 @@ class TaskSchedulerManager:
         ps_script = f"""
         $action = New-ScheduledTaskAction -Execute "{python_exe}" -Argument "-m yt_manager schedule --record-test-fire" -WorkingDirectory "{project_dir}"
         $trigger = New-ScheduledTaskTrigger -Once -At {target_time}
-        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -WakeToRun -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
         $principal = New-ScheduledTaskPrincipal -UserId "$env:USERNAME" -LogonType Interactive
 
         try {{
