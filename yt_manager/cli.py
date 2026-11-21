@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .auth import YouTubeAuthManager
@@ -84,7 +85,9 @@ def cmd_status(args: argparse.Namespace, config: YTManagerConfig) -> int:
     scheduler_mgr = TaskSchedulerManager(config)
 
     inbox_files = orchestrator.detector.scan_inbox()
-    active_batch = orchestrator.state.get_batch_for_date("2026-11-20")
+    tz = timezone(timedelta(hours=config.utc_offset_hours))
+    today_str = datetime.now(tz).strftime("%Y-%m-%d")
+    active_batch = orchestrator.state.get_batch_for_date(today_str)
     task_status = scheduler_mgr.check_task_status()
 
     # Check OAuth Token

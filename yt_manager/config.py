@@ -19,7 +19,7 @@ class YTManagerConfig:
     channel_name: str = "Unstocks"
 
     # Scheduling
-    schedule_time: str = "17:00"  # 5:00 PM IST
+    schedule_time: str = "18:00"  # 6:00 PM IST
     timezone: str = "Asia/Kolkata"
     utc_offset_hours: float = 5.5
     daily_clip_count: int = 2
@@ -129,7 +129,7 @@ class YTManagerConfig:
             channel_id=loaded_data.get("channel_id", "UCT0tm0KSB2BlIjdY6uUZCeA"),
             channel_url=loaded_data.get("channel_url", "https://youtube.com/@unstocks"),
             channel_name=loaded_data.get("channel_name", "Unstocks"),
-            schedule_time=loaded_data.get("schedule_time", "17:00"),
+            schedule_time=loaded_data.get("schedule_time", "18:00"),
             timezone=loaded_data.get("timezone", "Asia/Kolkata"),
             utc_offset_hours=float(loaded_data.get("utc_offset_hours", 5.5)),
             daily_clip_count=int(loaded_data.get("daily_clip_count", 2)),

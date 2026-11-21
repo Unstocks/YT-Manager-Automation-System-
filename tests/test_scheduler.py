@@ -21,7 +21,7 @@ class TestScheduler(unittest.TestCase):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_default_schedule_configuration(self):
-        self.assertEqual(self.config.schedule_time, "17:00")
+        self.assertEqual(self.config.schedule_time, "18:00")
         self.assertEqual(self.config.timezone, "Asia/Kolkata")
         self.assertEqual(self.config.utc_offset_hours, 5.5)
         self.assertEqual(self.config.daily_clip_count, 2)

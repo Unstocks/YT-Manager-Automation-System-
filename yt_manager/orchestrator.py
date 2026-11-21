@@ -70,7 +70,7 @@ class WorkflowOrchestrator:
         """
         Executes the daily batch workflow in IST (UTC+05:30):
         1. Pre-flight network health check.
-        2. Daily active window & midnight cutoff check (e.g. 17:00 to 23:59 IST).
+        2. Daily active window & midnight cutoff check (e.g. 18:00 to 23:59 IST).
            - Executes if opened anytime in the active window (including 30 or 10 min before 12:00 AM).
            - If upload fails, clips are safely returned to inbox/ queue.
            - After 12:00 AM midnight (past 23:59), cleanly shifts to the next day's execution.
