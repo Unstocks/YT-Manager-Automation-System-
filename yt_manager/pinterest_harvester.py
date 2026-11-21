@@ -286,11 +286,46 @@ class PinterestHarvester:
                 html = resp.read().decode("utf-8", errors="replace")
                 html = html.replace(r"\/", "/")
                 print(f"[Harvester Debug] Loaded: {final_url} (HTML length: {len(html)})")
-                
-                # Check for numeric pin IDs embedded in page state
-                candidate_ids = re.findall(r'"(?:pin_)?id"\s*:\s*"(\d{15,22})"', html)
-                if candidate_ids:
-                    unique_ids = list(dict.fromkeys(candidate_ids))
+
+                # Direct Check 1: Find any direct pinimg MP4 or M3U8 video URLs anywhere in HTML
+                direct_mp4s = re.findall(r'https://[a-zA-Z0-9_\-\.]*pinimg\.com/[^\s"\'<>]+\.mp4(?:\?[^\s"\'<>]*)?', html)
+                if direct_mp4s:
+                    unique_mp4s = list(dict.fromkeys(direct_mp4s))
+                    p1080 = [m for m in unique_mp4s if "1080p" in m]
+                    if p1080:
+                        print(f"[Harvester] Direct 1080p stream detected in HTML: {p1080[0][:65]}...")
+                        return p1080[0]
+                    p720 = [m for m in unique_mp4s if "720p" in m]
+                    if p720:
+                        print(f"[Harvester] Direct 720p stream detected in HTML: {p720[0][:65]}...")
+                        return p720[0]
+                    print(f"[Harvester] Direct MP4 stream detected in HTML: {unique_mp4s[0][:65]}...")
+                    return unique_mp4s[0]
+
+                direct_m3u8s = re.findall(r'https://[a-zA-Z0-9_\-\.]*pinimg\.com/[^\s"\'<>]+\.m3u8(?:\?[^\s"\'<>]*)?', html)
+                if direct_m3u8s:
+                    conv = direct_m3u8s[0].replace("/hls/", "/mc/720p/").replace(".m3u8", ".mp4")
+                    print(f"[Harvester] Direct HLS converted stream detected in HTML: {conv[:65]}...")
+                    return conv
+
+                # Direct Check 2: Check any "url": "https://..." pointing to mp4/m3u8
+                json_urls = re.findall(r'"url"\s*:\s*"(https://[^"]+\.(?:mp4|m3u8)[^"]*)"', html)
+                if json_urls:
+                    v_target = json_urls[0]
+                    if ".m3u8" in v_target:
+                        v_target = v_target.replace("/hls/", "/mc/720p/").replace(".m3u8", ".mp4")
+                    print(f"[Harvester] Stream detected via embedded JSON url: {v_target[:65]}...")
+                    return v_target
+
+                # Direct Check 3: Extract canonical numeric pin IDs from HTML
+                found_numeric_ids = (
+                    re.findall(r'/pin/(\d{15,22})', html)
+                    + re.findall(r'"(?:pin_)?id"\s*:\s*"?(\d{15,22})"?', html)
+                    + re.findall(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\'][^"\']*/pin/(\d+)', html)
+                    + re.findall(r'<meta[^>]+property=["\']og:url["\'][^>]+content=["\'][^"\']*/pin/(\d+)', html)
+                )
+                if found_numeric_ids:
+                    unique_ids = list(dict.fromkeys(found_numeric_ids))
                     print(f"[Harvester Debug] Numeric Pin IDs detected in HTML: {unique_ids[:4]}")
                     for cid in unique_ids[:3]:
                         api_url = (
@@ -303,11 +338,11 @@ class PinterestHarvester:
                             api_req = urllib.request.Request(api_url, headers=api_headers)
                             with urllib.request.urlopen(api_req, timeout=12) as api_resp:
                                 api_raw = api_resp.read().decode("utf-8").replace(r"\/", "/")
-                                mp4s = re.findall(r'https://v[0-9]*\.pinimg\.com/videos/[^\s"\'<>]+\.mp4(?:\?[^\s"\'<>]*)?', api_raw)
+                                mp4s = re.findall(r'https://[a-zA-Z0-9_\-\.]*pinimg\.com/[^\s"\'<>]+\.mp4(?:\?[^\s"\'<>]*)?', api_raw)
                                 if mp4s:
                                     print(f"[Harvester] Video URL found via PinResource ID {cid}: {mp4s[0][:65]}...")
                                     return mp4s[0]
-                                m3u8s = re.findall(r'https://v[0-9]*\.pinimg\.com/videos/[^\s"\'<>]+\.m3u8(?:\?[^\s"\'<>]*)?', api_raw)
+                                m3u8s = re.findall(r'https://[a-zA-Z0-9_\-\.]*pinimg\.com/[^\s"\'<>]+\.m3u8(?:\?[^\s"\'<>]*)?', api_raw)
                                 if m3u8s:
                                     converted = m3u8s[0].replace("/hls/", "/mc/720p/").replace(".m3u8", ".mp4")
                                     print(f"[Harvester] HLS converted stream found via PinResource ID {cid}: {converted[:65]}...")
@@ -347,7 +382,7 @@ class PinterestHarvester:
             return v
 
         # Strategy 5: Full regex scan for pinimg video URLs
-        mp4_matches = re.findall(r'https://v[0-9]*\.pinimg\.com/videos/[^\s"\'<>]+\.mp4(?:\?[^\s"\'<>]*)?', html)
+        mp4_matches = re.findall(r'https://[a-zA-Z0-9_\-\.]*pinimg\.com/[^\s"\'<>]+\.mp4(?:\?[^\s"\'<>]*)?', html)
         if mp4_matches:
             unique_mp4s = list(dict.fromkeys(mp4_matches))
             p1080 = [m for m in unique_mp4s if "1080p" in m]
@@ -358,7 +393,7 @@ class PinterestHarvester:
                 return p720[0]
             return unique_mp4s[0]
 
-        m3u8_matches = re.findall(r'https://v[0-9]*\.pinimg\.com/videos/[^\s"\'<>]+\.m3u8(?:\?[^\s"\'<>]*)?', html)
+        m3u8_matches = re.findall(r'https://[a-zA-Z0-9_\-\.]*pinimg\.com/[^\s"\'<>]+\.m3u8(?:\?[^\s"\'<>]*)?', html)
         if m3u8_matches:
             return m3u8_matches[0].replace("/hls/", "/mc/720p/").replace(".m3u8", ".mp4")
 

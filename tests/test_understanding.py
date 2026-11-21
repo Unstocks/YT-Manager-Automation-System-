@@ -21,7 +21,7 @@ class TestVideoUnderstandingEngine(unittest.TestCase):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_clean_title_from_filename(self):
-        self.assertEqual(clean_title_from_filename("clip_01.mp4"), "System Architecture & Engineering")
+        self.assertEqual(clean_title_from_filename("clip_01.mp4"), "Business Strategy & Brand Growth")
         self.assertEqual(clean_title_from_filename("system_design_patterns.mp4"), "System Design Patterns")
         self.assertEqual(clean_title_from_filename("batch_20261120_event_driven_microservices.mov"), "Event Driven Microservices")
         self.assertEqual(clean_title_from_filename("distributed_consensus_raft_algorithm.webm"), "Distributed Consensus Raft Algorithm")

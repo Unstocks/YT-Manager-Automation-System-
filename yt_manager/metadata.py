@@ -56,58 +56,68 @@ class SEOMetadataGenerator:
 
     def _generate_title(self, understanding: ContentUnderstanding) -> str:
         """
-        Generates a search-friendly, high-CTR, non-clickbait YouTube title strictly under 80 characters.
-        Dynamically adapts structure based on content attributes (spoken dialogue, on-screen text, key takeaways).
-        Appends #Shorts strictly when is_short is True.
+        Generates a search-friendly, high-CTR, brand-first YouTube title strictly under 80 characters.
+        Places prominent brand, company, or business entities front and center to maximize algorithm reach.
+        Appends #Shorts, #fyp, and dynamic brand/niche tags.
         """
-        topic = (understanding.central_topic or understanding.subject or "Technical Guide").strip()
-        topic = topic.rstrip(". :|-")
-        
-        has_dialogue = bool(understanding.spoken_dialogue and len(understanding.spoken_dialogue.strip()) > 10)
-        has_visual_text = bool(understanding.on_screen_text and len(understanding.on_screen_text) > 0)
+        # 1. Resolve featured brand
+        brand = getattr(understanding, "featured_brand", "").strip()
+
+        topic = (understanding.central_topic or understanding.subject or "Business Strategy").strip().rstrip(". :|-")
         takeaway = understanding.main_takeaway.strip().rstrip(". ") if understanding.main_takeaway else ""
 
-        # Dynamic title variation based on content characteristics
-        if has_dialogue and takeaway:
-            base_title = f"{topic}: What You Need to Know"
-        elif has_visual_text:
-            base_title = f"{topic} Breakdown & Overview"
-        elif takeaway and 10 <= len(takeaway) <= 40:
-            base_title = f"{topic} — {takeaway}"
+        # 2. Select High-CTR Brand-First Title Formula
+        if brand and brand.lower() != "unstocks":
+            # Brand-first viral business patterns
+            if takeaway and len(takeaway) <= 35:
+                base_title = f"{brand}'s Genius Strategy: {takeaway}"
+            elif "fail" in topic.lower() or "mistake" in topic.lower():
+                base_title = f"The $100M Mistake That Nearly Bankrupted {brand}"
+            elif "marketing" in topic.lower() or "secret" in topic.lower():
+                base_title = f"The Genius Marketing Secret Behind {brand}"
+            elif "crush" in topic.lower() or "beat" in topic.lower():
+                base_title = f"How {brand} Crushed Their Biggest Competitor"
+            else:
+                base_title = f"How {brand} Built A $1B Empire With ZERO Ads"
         else:
-            base_title = f"{topic} Explained"
+            # Topic-led business patterns
+            has_dialogue = bool(understanding.spoken_dialogue and len(understanding.spoken_dialogue.strip()) > 10)
+            has_visual_text = bool(understanding.on_screen_text and len(understanding.on_screen_text) > 0)
 
+            if has_dialogue and takeaway and len(takeaway) <= 35:
+                base_title = f"{topic}: What You Need to Know"
+            elif "pricing" in topic.lower():
+                base_title = f"The Pricing Psychology That Doubles Revenue"
+            elif "startup" in topic.lower() or "scale" in topic.lower():
+                base_title = f"Why 90% Of Startups Fail At $10k/Month"
+            elif takeaway and 10 <= len(takeaway) <= 35:
+                base_title = f"{topic} — {takeaway}"
+            elif has_visual_text:
+                base_title = f"{topic} Breakdown & Overview"
+            else:
+                base_title = f"{topic} Breakdown & Strategy"
+
+        # 3. Dynamic Hashtags for Shorts
         suffix = ""
         if understanding.is_short:
-            # Extract content hashtag (about the content)
-            content_tag = ""
-            if understanding.entities:
-                for ent in understanding.entities:
-                    clean = re.sub(r'[^a-zA-Z0-9]', '', ent)
-                    if 3 <= len(clean) <= 15 and clean.lower() != "unstocks":
-                        content_tag = clean
-                        break
-            if not content_tag and understanding.central_topic:
-                words = understanding.central_topic.split()
-                clean = re.sub(r'[^a-zA-Z0-9]', '', words[0])
-                if 3 <= len(clean) <= 15:
-                    content_tag = clean
-            if not content_tag and understanding.subject:
-                words = understanding.subject.split()
-                clean = re.sub(r'[^a-zA-Z0-9]', '', words[0])
-                if 3 <= len(clean) <= 15:
-                    content_tag = clean
-            if not content_tag:
-                content_tag = "Tech"
+            content_tag = "Business"
+            if brand and 3 <= len(brand) <= 20:
+                clean_b = re.sub(r'[^a-zA-Z0-9]', '', brand)
+                if 3 <= len(clean_b) <= 20:
+                    content_tag = clean_b
+            elif topic:
+                first_w = re.sub(r'[^a-zA-Z0-9]', '', topic.split()[0])
+                if 3 <= len(first_w) <= 20:
+                    content_tag = first_w
 
             suffix = f" #{content_tag} #shorts #fyp"
 
-        max_base_len = 78 - len(suffix)  # Guarantees final title length <= 78 (< 80 chars)
+        max_base_len = 78 - len(suffix)  # Enforce strictly <= 78 total characters
 
         if len(base_title) > max_base_len:
             truncated = base_title[:max_base_len].rsplit(" ", 1)[0]
             if len(truncated) < 10:
-                truncated = topic[:max_base_len].rsplit(" ", 1)[0]
+                truncated = (brand or topic)[:max_base_len].rsplit(" ", 1)[0]
             base_title = truncated.rstrip(", -:|")
 
         final_title = f"{base_title}{suffix}".strip()
@@ -119,75 +129,118 @@ class SEOMetadataGenerator:
         title: str,
     ) -> Tuple[str, List[str]]:
         """
-        Generates a structured YouTube description reflecting the actual clip content.
-        Uses summary, main_takeaway, on_screen_text, and extracted entities.
+        Generates a 6-Stage High-RPM Authority Description for YouTube algorithm indexing.
+        Features brand names, core business moats, and semantic keyword clouds.
         """
-        topic = (understanding.central_topic or understanding.subject or "Technology").strip()
+        brand = getattr(understanding, "featured_brand", "").strip() or "The World's Best Brands"
+        topic = (understanding.central_topic or understanding.subject or "Business Strategy").strip()
         summary = understanding.summary.strip()
         takeaway = understanding.main_takeaway.strip()
+        moat = getattr(understanding, "strategic_moat", "Market Positioning & Brand Equity")
         is_short = understanding.is_short
 
-        # 1. Opening hook derived from actual content
-        if summary and takeaway and takeaway not in summary:
-            opening_hook = f"{summary} {takeaway}"
+        # Stage 1: The Strategic Hook
+        if brand and brand != "The World's Best Brands":
+            opening_hook = (
+                f"How {brand} engineered an asymmetric market monopoly without competing on price. "
+                f"In this business case study, we deconstruct the marketing psychology, unit economics, "
+                f"and distribution moat behind their explosive brand growth."
+            )
         elif summary:
-            opening_hook = summary
-        elif takeaway:
-            opening_hook = f"In this breakdown, we examine {topic.lower()}: {takeaway}"
+            opening_hook = f"{summary} In this business breakdown, we examine the underlying strategic moats driving brand growth."
         else:
-            opening_hook = f"A concise breakdown of {topic.lower()}."
+            opening_hook = f"A tactical breakdown of {topic.lower()} and the high-leverage frameworks that drive scalable business growth."
 
-        # 2. Key takeaways and content explanation
-        explanation_lines = []
-        if takeaway and takeaway not in opening_hook:
-            explanation_lines.append(f"Key Takeaway: {takeaway}")
+        # Stage 2: 3-Point Business Mechanism Breakdown
+        key_points = []
         if understanding.on_screen_text:
-            key_points = [t.strip() for t in understanding.on_screen_text[:4] if t.strip()]
-            if key_points:
-                explanation_lines.append("Key points highlighted:")
-                for pt in key_points:
-                    explanation_lines.append(f"• {pt}")
-        explanation = "\n".join(explanation_lines) if explanation_lines else f"Exploring the core details and practical applications of {topic.lower()}."
+            key_points.extend([t.strip() for t in understanding.on_screen_text if t.strip()])
+        elif understanding.entities:
+            key_points.extend([e.strip() for e in understanding.entities if e.strip() and e.lower() != "unstocks"])
 
-        # 3. Dynamic keywords / topics covered derived from actual entities
-        entity_items = [e.strip() for e in understanding.entities if e.strip() and e.lower() != "unstocks"]
-        if entity_items:
-            keywords_context = "Topics covered in this clip:\n" + "\n".join(f"• {e}" for e in entity_items[:6])
-        else:
-            keywords_context = f"Topic covered: {topic}"
+        explanation_lines = [
+            "📊 Strategic Breakdown:",
+            f"• The Core Moat: How {brand or 'market leaders'} establish pricing power and uncontested market share.",
+            "• Customer Acquisition: The exact psychological framing that converts cold attention into high-LTV brand advocates.",
+            "• Unit Economics: How strategic distribution beats pure product features every single time.",
+        ]
+        if key_points:
+            explanation_lines.append("")
+            explanation_lines.append("Key points highlighted:")
+            for pt in key_points[:4]:
+                explanation_lines.append(f"• {pt}")
+        explanation = "\n".join(explanation_lines)
 
-        # 4. Relevant Call to Action
+        # Stage 3: Semantic Keyword Cloud (SEO Ranker)
+        brand_kw = f"{brand} Case Study • " if brand and brand != "The World's Best Brands" else ""
+        entity_kw = " • ".join([e.strip() for e in understanding.entities if e.strip() and e.lower() != "unstocks"][:5])
+        entity_kw_str = f"{entity_kw} • " if entity_kw else ""
+        keywords_context = (
+            f"🔍 Key Business & Marketing Topics:\n"
+            f"{brand_kw}{entity_kw_str}Brand Strategy • Marketing Psychology • Business Models • Startup Growth • "
+            f"Customer Acquisition • Unit Economics • Pricing Strategies • Entrepreneurship Mindset • How To Build A Brand"
+        )
+
+        # Stage 4 & 5: Unstocks Brand Positioning & High-Intent CTA
         cta = (
-            f"📌 About Unstocks:\n"
-            f"Unstocks provides curated digital blueprints and execution engines to turn high-conviction ideas "
-            f"into durable software deliverables.\n\n"
-            f"👉 Subscribe to @unstocks for more insights and breakdowns.\n"
+            f"🧠 About Unstocks:\n"
+            f"Unstocks (@unstocks) breaks down the hidden strategies, business mechanics, and brand psychology "
+            f"behind the world's most profitable companies. Daily tactical breakdowns for ambitious founders, "
+            f"brand architects, and operators.\n\n"
+            f"👉 Subscribe to @unstocks for daily unfiltered business breakdowns and wealth systems.\n"
             f"🌐 Channel: {self.config.channel_url}"
         )
 
-        # 5. Hashtags derived from actual entities + configurable high-reach presets
+        # Stage 6: Top-Volume Business Hashtag Battery
         clean_hashtags: List[str] = []
+        if brand and brand != "The World's Best Brands":
+            b_tag = re.sub(r'[^a-zA-Z0-9]', '', brand)
+            if b_tag and len(b_tag) >= 3:
+                clean_hashtags.append(b_tag)
+
         for e in understanding.entities:
             clean = re.sub(r'[^a-zA-Z0-9]', '', e)
-            if clean and len(clean) >= 3 and clean.lower() not in [c.lower() for c in clean_hashtags]:
+            if clean and len(clean) >= 3 and clean.lower() not in [c.lower() for c in clean_hashtags] and clean.lower() != "unstocks":
                 clean_hashtags.append(clean)
+                if len(clean_hashtags) >= 2:
+                    break
 
-        hashtags = clean_hashtags[:3]
-        if "Unstocks" not in hashtags and len(hashtags) < 4:
-            hashtags.append("Unstocks")
-
-        # Merge high-reach default hashtags for Shorts
         if is_short:
             preset = getattr(
                 self.config,
                 "default_hashtags",
-                ["Shorts", "ytshorts", "ShortsFeed", "fyp", "fypage", "viral"],
+                [
+                    "Shorts",
+                    "fyp",
+                    "Business",
+                    "BrandStrategy",
+                    "Marketing",
+                    "Entrepreneurship",
+                    "Startups",
+                    "BusinessStrategy",
+                    "CaseStudy",
+                    "Money",
+                    "ytshorts",
+                    "viral",
+                ],
             )
-            for tag in preset:
-                clean_tag = re.sub(r'[^a-zA-Z0-9]', '', tag)
-                if clean_tag and clean_tag.lower() not in [h.lower() for h in hashtags] and len(hashtags) < 9:
-                    hashtags.append(clean_tag)
+        else:
+            preset = [
+                "Business",
+                "BrandStrategy",
+                "Marketing",
+                "Entrepreneurship",
+                "Startups",
+                "BusinessStrategy",
+                "CaseStudy",
+                "Money",
+            ]
+        for tag in preset:
+            clean_tag = re.sub(r'[^a-zA-Z0-9]', '', tag)
+            if clean_tag and clean_tag.lower() not in [h.lower() for h in clean_hashtags]:
+                clean_hashtags.append(clean_tag)
 
+        hashtags = clean_hashtags[:12]
         hashtags_formatted = " ".join([f"#{h}" for h in hashtags])
 
         description_parts = [
@@ -231,13 +284,25 @@ class SEOMetadataGenerator:
             if 3 <= len(cleaned_text) <= 30 and cleaned_text not in tags:
                 tags.append(cleaned_text)
 
-        # Standard channel tag
-        if "unstocks" not in tags:
-            tags.append("unstocks")
+        # Standard business authority tags
+        business_authority_tags = [
+            "business strategy",
+            "brand strategy",
+            "marketing psychology",
+            "startup growth",
+            "how to build a brand",
+            "unit economics",
+            "case study",
+            "entrepreneurship",
+            "unstocks",
+        ]
+        for bat in business_authority_tags:
+            if bat not in tags:
+                tags.append(bat)
 
         # Format tag for Shorts
         if understanding.is_short:
-            for st in ["shorts", "youtube shorts"]:
+            for st in ["shorts", "youtube shorts", "business shorts"]:
                 if st not in tags:
                     tags.append(st)
 
@@ -294,11 +359,24 @@ class SEOMetadataGenerator:
 def generate_creator_comment(understanding: ContentUnderstanding) -> str:
     """
     Generates a high-engagement creator first-comment for YouTube algorithm distribution.
-    Prompts viewers with a content-specific question and includes the channel subscription CTA.
+    Uses the Founder's Dilemma Debate Loop to maximize comment section velocity, retention, and algorithmic reach.
     """
-    topic = understanding.central_topic or understanding.subject or "this topic"
-    cta = "👉 Subscribe to @unstocks for daily engineering breakdowns and system architecture deep dives!"
+    brand = getattr(understanding, "featured_brand", "").strip()
+    topic = understanding.central_topic or understanding.subject or "this business model"
+    subject_entity = brand if brand and brand.lower() != "unstocks" else topic
+
+    cta = "👉 Subscribe to @unstocks for daily unfiltered business breakdowns and wealth systems."
+
     if understanding.main_takeaway:
-        return f"💡 Key Takeaway: {understanding.main_takeaway}\n\nWhat's your take on {topic.lower()}? Drop your thoughts below!\n\n{cta}"
+        return (
+            f"💡 Founder's Dilemma: {understanding.main_takeaway}\n\n"
+            f"If you were the CEO of {subject_entity}, would you double down on premium high-margin pricing "
+            f"or aggressive mass-market volume? Drop your strategic breakdown below! 👇\n\n"
+            f"{cta}"
+        )
     else:
-        return f"💡 What are your thoughts on {topic.lower()}? Share your perspective in the comments below!\n\n{cta}"
+        return (
+            f"💡 Founder's Question: What is the single biggest moat protecting {subject_entity} from competition today?\n\n"
+            f"Drop your strategic take in the comments! 👇\n\n"
+            f"{cta}"
+        )

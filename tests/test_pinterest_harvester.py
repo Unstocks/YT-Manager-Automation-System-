@@ -1,6 +1,7 @@
 """
 Unit tests for PinterestHarvester.
 """
+import os
 import shutil
 import tempfile
 import unittest
@@ -10,9 +11,8 @@ from yt_manager.config import YTManagerConfig
 from yt_manager.pinterest_harvester import PinterestHarvester
 from yt_manager.state import StateManager
 
-SAMPLE_VIDEO_PATH = Path(
-    "C:/Users/sanja/.gemini/antigravity/brain/644084ee-6c51-48f9-9026-e53ad1e15c71/.user_uploaded/media_1795143017068_2d97bbe8.mp4"
-)
+REPO_ROOT = Path(__file__).parent.parent
+SAMPLE_VIDEO_PATH = REPO_ROOT / "processing" / "board_evaluation" / "pin_e1_AfqPShw8p3DgrEm3w11C1CRzzsv6NLU_W2352-aGI_ZT26uF-tBoUQ.mp4"
 
 
 class TestPinterestHarvester(unittest.TestCase):

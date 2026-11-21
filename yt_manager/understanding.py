@@ -26,13 +26,15 @@ logger = logging.getLogger("YTManager.Understanding")
 class ContentUnderstanding:
     subject: str
     central_topic: str
+    featured_brand: str = ""
+    strategic_moat: str = ""
     on_screen_text: List[str] = field(default_factory=list)
     spoken_dialogue: str = ""
     entities: List[str] = field(default_factory=list)
-    intended_audience: str = "Developers, Engineers, Technical Founders"
+    intended_audience: str = "Founders, Entrepreneurs, Brand Builders, Operators"
     main_takeaway: str = ""
-    category_id: str = "28"  # 28: Science & Technology, 27: Education
-    category_name: str = "Science & Technology"
+    category_id: str = "27"  # 27: Education (High-RPM Business, Strategy, Case Studies)
+    category_name: str = "Education"
     language: str = "en"
     is_short: bool = True
     confidence: float = 1.0
@@ -52,7 +54,7 @@ def clean_title_from_filename(filename: str) -> str:
     words = re.split(r'[_\-\s]+', cleaned)
     words = [w.strip() for w in words if w.strip() and not w.isdigit()]
     if not words:
-        return "System Architecture & Engineering"
+        return "Business Strategy & Brand Growth"
     return " ".join(w.capitalize() for w in words)
 
 
@@ -198,19 +200,23 @@ class VideoUnderstandingEngine:
         if sidecar:
             subject = sidecar.get("subject", topic_from_name)
             central_topic = sidecar.get("central_topic", topic_from_name)
+            featured_brand = sidecar.get("featured_brand", "")
+            strategic_moat = sidecar.get("strategic_moat", "Distribution & Brand Moat")
             on_screen_text = sidecar.get("on_screen_text", [])
             spoken_dialogue = sidecar.get("spoken_dialogue", "")
-            entities = sidecar.get("entities", [topic_from_name, "Unstocks", "Software Engineering"])
-            audience = sidecar.get("intended_audience", "Developers, Engineers, Technical Founders")
-            takeaway = sidecar.get("main_takeaway", sidecar.get("summary", f"A concise deep dive into {central_topic}."))
-            cat_id = str(sidecar.get("category_id", "28" if not inspection.is_short else "27"))
-            cat_name = "Science & Technology" if cat_id == "28" else "Education"
+            entities = sidecar.get("entities", [featured_brand or topic_from_name, "Unstocks", "Business Strategy"])
+            audience = sidecar.get("intended_audience", "Founders, Entrepreneurs, Brand Builders, Operators")
+            takeaway = sidecar.get("main_takeaway", sidecar.get("summary", f"Strategic business breakdown of {central_topic}."))
+            cat_id = str(sidecar.get("category_id", "27"))
+            cat_name = "Education"
             lang = sidecar.get("language", "en")
             summary = sidecar.get("summary", f"{subject}: {takeaway}")
 
             return ContentUnderstanding(
                 subject=subject,
                 central_topic=central_topic,
+                featured_brand=featured_brand,
+                strategic_moat=strategic_moat,
                 on_screen_text=on_screen_text,
                 spoken_dialogue=spoken_dialogue,
                 entities=entities,
@@ -227,35 +233,44 @@ class VideoUnderstandingEngine:
         # 2. Attempt Gemini Multimodal Vision API if key is available
         if self.api_key:
             gemini_prompt = """
-Analyze the provided video frames.
+Analyze the provided video frames for a high-retention Business, Brand Strategy & Monetization YouTube Short.
+Identify:
+1. The exact Brand, Company, Founder, or Product featured (e.g. Nike, Zara, Apple, Red Bull, Starbucks, Airbnb, DS Group, Pulse, etc.).
+2. The strategic mechanism or business lesson (e.g. pricing strategy, marketing psychology, distribution moat, zero-ad model, customer acquisition, viral loop).
+3. Any visible on-screen text or headline.
+
 Return a valid JSON object matching this schema:
 {
+  "featured_brand": "Name of the featured company or brand",
   "subject": "Concise main subject (3-6 words)",
-  "central_topic": "Specific topic discussed (3-6 words)",
+  "central_topic": "Specific business topic (3-6 words)",
   "on_screen_text": ["Exact list of visible text snippets across frames"],
   "spoken_dialogue": "Any transcript or spoken dialogue if identifiable",
-  "entities": ["List of key technical entities, terms, or brands"],
-  "intended_audience": "Target audience",
-  "main_takeaway": "Direct takeaway of the video",
-  "category_id": "28 or 27",
+  "entities": ["List of key brands, companies, business terms, and founders"],
+  "intended_audience": "Founders, Entrepreneurs, Brand Builders, Operators",
+  "main_takeaway": "Direct strategic or business takeaway",
+  "strategic_moat": "Core business moat (pricing, distribution, brand, retention, etc.)",
+  "category_id": "27",
   "language": "en",
-  "summary": "2-sentence factual summary of what the clip shows"
+  "summary": "2-sentence factual business summary of what the clip shows"
 }
 CRITICAL ACCURACY RULE: Do NOT invent claims, numbers, facts, or quotes not visible in the frames.
 """
             res = self._call_gemini_vision(inspection, gemini_prompt)
             if res:
-                cat_id = str(res.get("category_id", "28" if not inspection.is_short else "27"))
+                cat_id = str(res.get("category_id", "27"))
                 return ContentUnderstanding(
                     subject=res.get("subject", topic_from_name),
                     central_topic=res.get("central_topic", topic_from_name),
+                    featured_brand=res.get("featured_brand", ""),
+                    strategic_moat=res.get("strategic_moat", "Market Positioning"),
                     on_screen_text=res.get("on_screen_text", []),
                     spoken_dialogue=res.get("spoken_dialogue", ""),
                     entities=res.get("entities", [topic_from_name, "Unstocks"]),
-                    intended_audience=res.get("intended_audience", "Developers, Engineers, Technical Founders"),
-                    main_takeaway=res.get("main_takeaway", f"Essential architectural principles for {topic_from_name}."),
+                    intended_audience=res.get("intended_audience", "Founders, Entrepreneurs, Brand Builders, Operators"),
+                    main_takeaway=res.get("main_takeaway", f"Core strategic growth principles for {topic_from_name}."),
                     category_id=cat_id,
-                    category_name="Science & Technology" if cat_id == "28" else "Education",
+                    category_name="Education",
                     language=res.get("language", "en"),
                     is_short=inspection.is_short,
                     confidence=0.95,
@@ -263,34 +278,36 @@ CRITICAL ACCURACY RULE: Do NOT invent claims, numbers, facts, or quotes not visi
                 )
 
         # 3. Deterministic Local Fallback (Strictly Factual & Content-Grounded)
-        # Avoids fabricating claims or numbers not established in the file.
         format_str = "YouTube Shorts (9:16 vertical)" if inspection.is_short else "Standard Landscape (16:9)"
         audio_str = f"with {inspection.audio_codec} audio" if inspection.has_audio else "silent video"
         
+        brand_guess = ""
         summary = (
-            f"Video clip '{filename}' ({inspection.duration_seconds:.1f}s, {inspection.width}x{inspection.height}, "
+            f"Business breakdown '{filename}' ({inspection.duration_seconds:.1f}s, {inspection.width}x{inspection.height}, "
             f"{format_str}, {audio_str}). Topic: {topic_from_name}."
         )
 
-        takeaway = f"Overview of {topic_from_name}."
+        takeaway = f"Strategic breakdown of {topic_from_name}."
 
         entities = [
             topic_from_name,
             "Unstocks",
         ]
 
-        cat_id = "27" if inspection.is_short else "28"
+        cat_id = "27"
 
         return ContentUnderstanding(
             subject=topic_from_name,
             central_topic=topic_from_name,
+            featured_brand=brand_guess,
+            strategic_moat="Brand Strategy & Market Positioning",
             on_screen_text=[],
             spoken_dialogue="",
             entities=entities,
-            intended_audience="General Audience, Tech Enthusiasts",
+            intended_audience="Founders, Entrepreneurs, Brand Builders, Operators",
             main_takeaway=takeaway,
             category_id=cat_id,
-            category_name="Education" if cat_id == "27" else "Science & Technology",
+            category_name="Education",
             language="en",
             is_short=inspection.is_short,
             confidence=0.7,

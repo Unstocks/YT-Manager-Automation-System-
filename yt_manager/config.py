@@ -47,10 +47,11 @@ class YTManagerConfig:
     api_request_timeout: int = 60
 
     # AI & Metadata Options
-    default_category_id: str = "28"  # 28: Science & Technology, 27: Education
+    default_category_id: str = "27"  # 27: Education (High-RPM Business, Strategy, Case Studies)
     default_language: str = "en"
     gemini_api_key: str = ""
     allow_deterministic_excess: bool = False  # If False, reports ambiguity when >2 clips exist
+    custom_inbox_dir: str = ""  # Optional custom inbox directory (e.g. OneDrive/YT-Inbox)
 
     # Notification Config
     enable_toast_notifications: bool = True
@@ -65,13 +66,42 @@ class YTManagerConfig:
     enable_creator_comment: bool = True
     creator_comment_template: str = ""
 
-    # Viral & Format Hashtag Config for Shorts
+    # High-Velocity Business & Viral Hashtags for Shorts
     default_hashtags: List[str] = field(
-        default_factory=lambda: ["Shorts", "ytshorts", "ShortsFeed", "fyp", "fypage", "viral"]
+        default_factory=lambda: [
+            "Shorts",
+            "fyp",
+            "Business",
+            "BrandStrategy",
+            "Marketing",
+            "Entrepreneurship",
+            "Startups",
+            "BusinessStrategy",
+            "CaseStudy",
+            "Money",
+            "ytshorts",
+            "ShortsFeed",
+            "viral",
+        ]
     )
 
     def __post_init__(self) -> None:
-        self.inbox_dir = self.base_dir / "inbox"
+        if self.custom_inbox_dir:
+            try:
+                candidate = Path(self.custom_inbox_dir).expanduser().resolve()
+                if candidate.exists() or candidate.is_dir():
+                    self.inbox_dir = candidate
+                else:
+                    try:
+                        candidate.mkdir(parents=True, exist_ok=True)
+                        self.inbox_dir = candidate
+                    except Exception:
+                        self.inbox_dir = self.base_dir / "inbox"
+            except Exception:
+                self.inbox_dir = self.base_dir / "inbox"
+        else:
+            self.inbox_dir = self.base_dir / "inbox"
+
         self.processing_dir = self.base_dir / "processing"
         self.uploaded_dir = self.base_dir / "uploaded"
         self.failed_dir = self.base_dir / "failed"
@@ -126,6 +156,12 @@ class YTManagerConfig:
         if env_gemini_key:
             loaded_data["gemini_api_key"] = env_gemini_key
 
+        env_inbox = os.environ.get("YT_INBOX_DIR")
+        if env_inbox:
+            loaded_data["custom_inbox_dir"] = env_inbox
+
+        inbox_setting = loaded_data.get("inbox_dir") or loaded_data.get("custom_inbox_dir") or ""
+
         config = cls(
             channel_id=loaded_data.get("channel_id", "UCT0tm0KSB2BlIjdY6uUZCeA"),
             channel_url=loaded_data.get("channel_url", "https://youtube.com/@unstocks"),
@@ -137,10 +173,11 @@ class YTManagerConfig:
             retry_interval_minutes=int(loaded_data.get("retry_interval_minutes", 15)),
             daily_cutoff_time=loaded_data.get("daily_cutoff_time", "23:59"),
             privacy_status=loaded_data.get("privacy_status", "public"),
-            default_category_id=loaded_data.get("default_category_id", "28"),
+            default_category_id=loaded_data.get("default_category_id", "27"),
             default_language=loaded_data.get("default_language", "en"),
             gemini_api_key=loaded_data.get("gemini_api_key", ""),
-            allow_deterministic_excess=bool(loaded_data.get("allow_deterministic_excess", False)),
+            allow_deterministic_excess=bool(loaded_data.get("allow_deterministic_excess", True)),
+            custom_inbox_dir=str(inbox_setting),
             enable_toast_notifications=bool(loaded_data.get("enable_toast_notifications", True)),
             enable_console_notifications=bool(loaded_data.get("enable_console_notifications", True)),
             webhook_url=loaded_data.get("webhook_url", ""),
@@ -151,7 +188,21 @@ class YTManagerConfig:
             default_hashtags=list(
                 loaded_data.get(
                     "default_hashtags",
-                    ["Shorts", "ytshorts", "ShortsFeed", "fyp", "fypage", "viral"],
+                    [
+                        "Business",
+                        "BrandStrategy",
+                        "Marketing",
+                        "Entrepreneurship",
+                        "Startups",
+                        "BusinessStrategy",
+                        "CaseStudy",
+                        "Money",
+                        "Shorts",
+                        "ytshorts",
+                        "ShortsFeed",
+                        "fyp",
+                        "viral",
+                    ],
                 )
             ),
         )
