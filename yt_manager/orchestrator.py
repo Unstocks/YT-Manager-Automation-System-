@@ -332,6 +332,33 @@ class WorkflowOrchestrator:
             )
             understanding = self.understanding_engine.analyze(inspection)
 
+            # CIRCUIT BREAKER: Block upload if content understanding is unverified fallback
+            if not self.mock_mode and getattr(understanding, "is_fallback", False):
+                err_msg = (
+                    f"CIRCUIT BREAKER TRIGGERED: AI video understanding was unable to verify visual/audio content of '{original_filename}' "
+                    f"(confidence: {understanding.confidence:.2f}). Upload blocked to protect channel quality from unverified/scraper metadata. "
+                    f"Please verify GEMINI_API_KEY in config/settings.json or provide a sidecar .txt/.json file."
+                )
+                self.state.log(batch_id, "ERROR", err_msg)
+                self.notifier.notify(
+                    event="CONTENT_BLOCKED",
+                    title="Upload Blocked — AI Vision Offline",
+                    message=f"Halted upload for '{original_filename}' to prevent unverified metadata on YouTube.",
+                    level="ERROR",
+                    batch_id=batch_id,
+                )
+                return ClipExecutionReport(
+                    index=index,
+                    original_filename=original_filename,
+                    generated_title="[BLOCKED] Unverified Content",
+                    description_status="Blocked by Circuit Breaker",
+                    metadata_status="Blocked",
+                    upload_status="BLOCKED (CIRCUIT_BREAKER)",
+                    youtube_video_id="",
+                    youtube_url="",
+                    error_message=err_msg,
+                )
+
             # 3. SEO Metadata Generation
             self.notifier.notify(
                 event="METADATA_GENERATION",

@@ -12,6 +12,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_PATTERNS = [
     (re.compile(r"AIza[0-9A-Za-z-_]{35}"), "Google / Gemini API Key"),
+    (re.compile(r"AQ\.[0-9A-Za-z-_]{30,}"), "Google / Gemini Authorization Key"),
     (re.compile(r"[0-9]{8,10}:[A-Za-z0-9_-]{35}"), "Telegram Bot Token"),
     (re.compile(r"ghp_[A-Za-z0-9]{36}"), "GitHub Personal Access Token"),
     (re.compile(r"github_pat_[A-Za-z0-9_]{82}"), "GitHub Fine-Grained Token"),

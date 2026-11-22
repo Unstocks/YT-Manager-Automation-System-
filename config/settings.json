@@ -11,6 +11,7 @@
     "privacy_status":  "public",
     "default_category_id":  "27",
     "default_language":  "en",
+    "gemini_api_key": "",
     "allow_deterministic_excess":  true,
     "inbox_dir":  "C:/Users/sanja/OneDrive/YT-Inbox",
     "enable_toast_notifications":  true,

@@ -428,6 +428,92 @@ def cmd_harvest(args: argparse.Namespace, config: YTManagerConfig) -> int:
         return 1
 
 
+def cmd_test_ai(args: argparse.Namespace, config: YTManagerConfig) -> int:
+    """Tests AI content understanding on a video clip and displays extracted text, topic, and metadata."""
+    from .inspector import MediaInspector
+    from .understanding import VideoUnderstandingEngine
+    from .metadata import SEOMetadataGenerator
+
+    target_clip = None
+    if getattr(args, "clip", None):
+        target_clip = Path(args.clip)
+    else:
+        inbox_clips = list(config.inbox_dir.glob("*.mp4"))
+        if inbox_clips:
+            target_clip = inbox_clips[0]
+        else:
+            uploaded_clips = list(config.uploaded_dir.rglob("*.mp4"))
+            if uploaded_clips:
+                target_clip = uploaded_clips[0]
+
+    if not target_clip or not target_clip.exists():
+        print("\n[AI Test] Error: No video clip found to test. Provide --clip <path_to_video.mp4>.\n")
+        return 1
+
+    print("\n" + "=" * 65)
+    print("             YT MANAGER — AI VIDEO UNDERSTANDING TEST")
+    print("=" * 65)
+    print(f"Target Video Clip  : {target_clip.name}")
+    print(f"File Path          : {target_clip}")
+    key_preview = f"{config.gemini_api_key[:10]}...{config.gemini_api_key[-4:]}" if config.gemini_api_key else "NOT CONFIGURED"
+    print(f"Gemini API Key     : {key_preview}")
+    print("-" * 65)
+
+    inspector = MediaInspector()
+    temp_work = config.base_dir / "processing" / "test_ai_work"
+    temp_work.mkdir(parents=True, exist_ok=True)
+
+    print("[1/3] Extracting keyframes and media inspection via FFmpeg...")
+    inspection = inspector.inspect(target_clip, work_dir=temp_work)
+    print(f"      Duration: {inspection.duration_seconds:.1f}s | Resolution: {inspection.width}x{inspection.height}")
+    print(f"      Keyframes Extracted: {len(inspection.extracted_frames)}")
+
+    print("[2/3] Calling Multimodal AI Vision Engine (Gemini)...")
+    engine = VideoUnderstandingEngine(config.gemini_api_key)
+    understanding = engine.analyze(inspection)
+
+    print("\n" + "-" * 65)
+    print("                AI RECOGNITION OUTPUT")
+    print("-" * 65)
+    status_label = "✅ LIVE AI VISION (SUCCESS)" if not understanding.is_fallback else "⚠️ LOCAL FALLBACK (CIRCUIT BREAKER WOULD BLOCK UPLOAD)"
+    print(f"Status             : {status_label}")
+    print(f"Confidence Score   : {understanding.confidence:.2f}")
+    print(f"Subject            : {understanding.subject}")
+    print(f"Central Topic      : {understanding.central_topic}")
+    print(f"Featured Brand     : {understanding.featured_brand or 'General Business'}")
+    print(f"Strategic Moat     : {understanding.strategic_moat}")
+    print(f"Main Takeaway      : {understanding.main_takeaway}")
+    print("On-Screen Text     :")
+    if understanding.on_screen_text:
+        for t in understanding.on_screen_text:
+            print(f"  • \"{t}\"")
+    else:
+        print("  • (None detected or offline fallback)")
+
+    print("\n[3/3] Generating SEO Metadata Preview...")
+    meta_gen = SEOMetadataGenerator(config)
+    metadata = meta_gen.generate(
+        batch_id="test_ai_batch",
+        clip_id="test_ai_clip",
+        original_filename=target_clip.name,
+        understanding=understanding,
+    )
+
+    print("-" * 65)
+    print("            PROPOSED YOUTUBE METADATA PREVIEW")
+    print("-" * 65)
+    print(f"Title ({len(metadata.title)} chars) : {metadata.title}")
+    print(f"Hashtags            : {' '.join('#' + h for h in metadata.hashtags[:6])}")
+    print("Description Snippet :")
+    for line in metadata.description.splitlines()[:6]:
+        print(f"  {line}")
+    print("=" * 65 + "\n")
+
+    import shutil
+    shutil.rmtree(temp_work, ignore_errors=True)
+    return 0
+
+
 def cmd_setup_ytdlp(args: argparse.Namespace, config: YTManagerConfig) -> int:
     """Downloads the official standalone yt-dlp.exe binary into scripts/yt-dlp.exe."""
     import urllib.request
@@ -522,6 +608,10 @@ def main() -> None:
     # setup-ytdlp
     subparsers.add_parser("setup-ytdlp", help="Download official standalone yt-dlp.exe into scripts/")
 
+    # test-ai
+    test_ai_parser = subparsers.add_parser("test-ai", help="Test AI Vision content understanding & on-screen text extraction on a video")
+    test_ai_parser.add_argument("--clip", type=str, default="", help="Path to video file to inspect with AI")
+
     args = parser.parse_args()
 
     dispatch = {
@@ -534,6 +624,7 @@ def main() -> None:
         "daemon": cmd_daemon,
         "harvest": cmd_harvest,
         "setup-ytdlp": cmd_setup_ytdlp,
+        "test-ai": cmd_test_ai,
     }
 
     handler = dispatch.get(args.command)

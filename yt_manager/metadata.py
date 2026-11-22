@@ -198,7 +198,10 @@ class SEOMetadataGenerator:
             if b_tag and 3 <= len(b_tag) <= 20:
                 clean_hashtags.append(b_tag)
 
+        SCRAPER_BLACKLIST = ("klickpin", "pinterest", "dreamboard", "transformed", "pinid", "pin")
         for e in understanding.entities:
+            if any(b in e.lower() for b in SCRAPER_BLACKLIST):
+                continue
             clean = re.sub(r'[^a-zA-Z0-9]', '', e)
             if clean and 3 <= len(clean) <= 20 and clean.lower() not in [c.lower() for c in clean_hashtags] and clean.lower() != "unstocks":
                 clean_hashtags.append(clean)

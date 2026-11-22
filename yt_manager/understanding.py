@@ -39,6 +39,7 @@ class ContentUnderstanding:
     is_short: bool = True
     confidence: float = 1.0
     summary: str = ""
+    is_fallback: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -125,7 +126,10 @@ class VideoUnderstandingEngine:
         }
 
         req_data = json.dumps(payload).encode("utf-8")
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key,
+        }
 
         # Attempt call with 1 retry on transient errors
         max_attempts = 2
@@ -245,6 +249,7 @@ class VideoUnderstandingEngine:
                 is_short=inspection.is_short,
                 confidence=1.0,
                 summary=summary,
+                is_fallback=False,
             )
 
         # 2. Attempt Gemini Multimodal Vision API if key is available
@@ -292,6 +297,7 @@ CRITICAL ACCURACY RULE: Do NOT invent claims, numbers, facts, or quotes not visi
                     is_short=inspection.is_short,
                     confidence=0.95,
                     summary=res.get("summary", ""),
+                    is_fallback=False,
                 )
 
         # 3. Deterministic Local Fallback (Strictly Factual & Content-Grounded)
@@ -329,4 +335,5 @@ CRITICAL ACCURACY RULE: Do NOT invent claims, numbers, facts, or quotes not visi
             is_short=inspection.is_short,
             confidence=0.7,
             summary=summary,
+            is_fallback=True,
         )

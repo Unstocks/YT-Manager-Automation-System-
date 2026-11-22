@@ -146,6 +146,20 @@ class YTManagerConfig:
         default_base = Path(__file__).resolve().parent.parent
         settings_file = custom_config_path or (default_base / "config" / "settings.json")
 
+        # Load .env file if it exists (pure standard library)
+        env_file = default_base / ".env"
+        if env_file.exists():
+            try:
+                for line in env_file.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k, v = k.strip(), v.strip().strip('"').strip("'")
+                        if k and v:
+                            os.environ[k] = v
+            except Exception:
+                pass
+
         loaded_data: Dict[str, Any] = {}
         if settings_file.exists():
             try:
@@ -245,6 +259,7 @@ class YTManagerConfig:
                 "privacy_status": self.privacy_status,
                 "default_category_id": self.default_category_id,
                 "default_language": self.default_language,
+                "gemini_api_key": self.gemini_api_key,
                 "allow_deterministic_excess": self.allow_deterministic_excess,
                 "enable_toast_notifications": self.enable_toast_notifications,
                 "enable_console_notifications": self.enable_console_notifications,
