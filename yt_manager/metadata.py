@@ -195,12 +195,12 @@ class SEOMetadataGenerator:
         clean_hashtags: List[str] = []
         if brand and brand != "The World's Best Brands":
             b_tag = re.sub(r'[^a-zA-Z0-9]', '', brand)
-            if b_tag and len(b_tag) >= 3:
+            if b_tag and 3 <= len(b_tag) <= 20:
                 clean_hashtags.append(b_tag)
 
         for e in understanding.entities:
             clean = re.sub(r'[^a-zA-Z0-9]', '', e)
-            if clean and len(clean) >= 3 and clean.lower() not in [c.lower() for c in clean_hashtags] and clean.lower() != "unstocks":
+            if clean and 3 <= len(clean) <= 20 and clean.lower() not in [c.lower() for c in clean_hashtags] and clean.lower() != "unstocks":
                 clean_hashtags.append(clean)
                 if len(clean_hashtags) >= 2:
                     break

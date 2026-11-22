@@ -8,7 +8,7 @@
     "daily_clip_count":  2,
     "retry_interval_minutes":  15,
     "daily_cutoff_time":  "23:59",
-    "privacy_status":  "private",
+    "privacy_status":  "public",
     "default_category_id":  "27",
     "default_language":  "en",
     "allow_deterministic_excess":  true,

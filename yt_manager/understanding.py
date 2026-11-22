@@ -45,17 +45,34 @@ class ContentUnderstanding:
 
 
 def clean_title_from_filename(filename: str) -> str:
-    """Extracts a readable, capitalized topic phrase from a video filename."""
+    """Extracts a readable, capitalized topic phrase from a video filename, aggressively removing web scraper boilerplate."""
     stem = Path(filename).stem
-    # Remove common prefixes/suffixes like clip_, batch_, test_, raw_, media_, numbers, hashes
+
+    # 1. Strip transformed prefixes
+    stem = re.sub(r'^(transformed_|masked_|cleaned_)+', '', stem, flags=re.IGNORECASE)
+
+    # 2. Strip web scraper prefixes (Klickpin, Pinterest, TikTok, etc.)
+    stem = re.sub(r'^(from\s*klickpin\.com[\s\-_]*|from\s*pinterest[\s\-_]*|pinterest[\s\-_]*)', '', stem, flags=re.IGNORECASE)
+
+    # 3. Strip pin IDs and url slugs
+    stem = re.sub(r'(-?pin-id-?\d*|-?[a-f0-9]{16,})', '', stem, flags=re.IGNORECASE)
+
+    # 4. Strip boilerplate SEO sentences commonly appended by web scrapers
+    stem = re.sub(r'(that are trending right now.*|with easy charm.*|for ideas worth saving.*|to spark your next plan.*)', '', stem, flags=re.IGNORECASE)
+
+    # 5. Remove common file tags like clip_, batch_, test_, raw_, media_, numbers, hashes
     cleaned = re.sub(r'^(clip_?\d*|batch_?\d*|test_?\d*|media_?\d*|video_?\d*)[_\-\s]*', '', stem, flags=re.IGNORECASE)
     cleaned = re.sub(r'(_\d{8}_\d{6}|_[a-f0-9]{8,})', '', cleaned)
+
     # Replace delimiters with spaces
-    words = re.split(r'[_\-\s]+', cleaned)
-    words = [w.strip() for w in words if w.strip() and not w.isdigit()]
-    if not words:
+    words = re.split(r'[_\-\s\.]+', cleaned)
+    words = [w.strip() for w in words if w.strip() and not w.isdigit() and len(w) > 1 and w.lower() not in {"com", "mp4", "mov", "mkv", "pin", "id", "klickpin"}]
+
+    if not words or len(words) < 2:
         return "Business Strategy & Brand Growth"
-    return " ".join(w.capitalize() for w in words)
+
+    # Limit to first 6 meaningful words so we don't carry full paragraphs
+    return " ".join(w.capitalize() for w in words[:6])
 
 
 class VideoUnderstandingEngine:
