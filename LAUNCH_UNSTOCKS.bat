@@ -19,10 +19,11 @@ echo   [4] Apply Targeted Upgrade to Uploaded Clips Only
 echo   [5] Restore Video Metadata from Plan
 echo   [6] Connect / Setup OneDrive Inbox
 echo   [7] Run Full Test Suite (35 Tests)
+echo   [8] Check System & Inbox Status
 echo   [0] Exit
 echo.
 echo =====================================================================
-set /p choice="Enter choice [0-7]: "
+set /p choice="Enter choice [0-8]: "
 
 if "%choice%"=="1" goto RUN_UPLOAD
 if "%choice%"=="2" goto INSTALL_SCHED
@@ -31,6 +32,7 @@ if "%choice%"=="4" goto UPGRADE_TARGETED
 if "%choice%"=="5" goto RESTORE
 if "%choice%"=="6" goto ONEDRIVE
 if "%choice%"=="7" goto RUN_TESTS
+if "%choice%"=="8" goto STATUS
 if "%choice%"=="0" goto EXIT
 
 echo Invalid option. Please try again.
@@ -89,6 +91,14 @@ goto MENU
 cls
 echo Running Full Automated Test Suite...
 python -m unittest discover tests
+echo.
+pause
+goto MENU
+
+:STATUS
+cls
+echo Checking YT Manager System & Inbox Status...
+python -m yt_manager status
 echo.
 pause
 goto MENU

@@ -70,13 +70,27 @@ if (Test-Path $SettingsFile) {
     }
 }
 
+# 5. Inventory video files currently in OneDrive YT-Inbox
+$videoExtensions = @("*.mp4", "*.mov", "*.mkv", "*.webm", "*.avi", "*.m4v")
+$readyClips = @()
+foreach ($ext in $videoExtensions) {
+    $found = Get-ChildItem -Path $TargetInbox -Filter $ext -File -ErrorAction SilentlyContinue
+    if ($found) { $readyClips += $found }
+}
+
 Write-Host "`n============================================================" -ForegroundColor Green
 Write-Host " SUCCESS: YT Manager is now connected to OneDrive!" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Green
-Write-Host "Your direct upload folder on this PC:" -ForegroundColor White
-Write-Host "  $TargetInbox`n" -ForegroundColor Yellow
-Write-Host "ON YOUR PHONE:" -ForegroundColor Cyan
-Write-Host "1. Open OneDrive app on your phone (log in with your Microsoft account)." -ForegroundColor White
-Write-Host "2. You will see the folder: 'YT-Inbox'." -ForegroundColor White
-Write-Host "3. Share or upload any video directly into 'YT-Inbox'." -ForegroundColor White
-Write-Host "4. It syncs to your laptop in seconds, and YT Manager uploads it at 6:00 PM IST!`n" -ForegroundColor White
+Write-Host "Direct Upload Folder: $TargetInbox" -ForegroundColor Yellow
+
+if ($readyClips.Count -gt 0) {
+    Write-Host "`nDetected $($readyClips.Count) clip(s) ready in YT-Inbox:" -ForegroundColor Cyan
+    $idx = 1
+    foreach ($clip in $readyClips) {
+        $sizeMb = [math]::Round($clip.Length / 1MB, 2)
+        Write-Host "  [$idx] $($clip.Name) (${sizeMb} MB)" -ForegroundColor White
+        $idx++
+    }
+} else {
+    Write-Host "`nNo video clips detected in YT-Inbox yet." -ForegroundColor DarkYellow
+}

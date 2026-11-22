@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -55,30 +56,64 @@ class ClipDetector:
         self.state = state_manager
 
     def scan_inbox(self) -> List[Path]:
-        """Finds all video files inside the inbox directory."""
-        if not self.config.inbox_dir.exists():
-            return []
+        """
+        Finds all video files inside the configured inbox directory,
+        with fallback to local project inbox and protection against active sync files.
+        """
+        candidate_dirs = [self.config.inbox_dir]
+        local_inbox = self.config.base_dir / "inbox" if hasattr(self.config, "base_dir") and self.config.base_dir else Path("inbox")
+        try:
+            if local_inbox.resolve() != self.config.inbox_dir.resolve() and local_inbox not in candidate_dirs:
+                candidate_dirs.append(local_inbox)
+        except Exception:
+            pass
+
+        seen_names = set()
         files = []
-        for p in self.config.inbox_dir.iterdir():
-            if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS:
-                files.append(p)
+        for d in candidate_dirs:
+            try:
+                if not d.exists():
+                    continue
+                for p in d.iterdir():
+                    try:
+                        if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS:
+                            # Skip temporary sync files, hidden files, or partial downloads
+                            if p.name.startswith("~$") or p.name.startswith(".") or p.name.endswith(".tmp") or p.name.endswith(".crdownload"):
+                                continue
+                            if p.name not in seen_names:
+                                seen_names.add(p.name)
+                                files.append(p)
+                    except (PermissionError, OSError):
+                        continue
+            except (PermissionError, OSError):
+                continue
+
         return sorted(files, key=lambda f: f.name)
 
     def validate_clip(self, file_path: Path) -> DetectedClip:
         """Inspects file readability, size, hash, and checks for prior uploads."""
-        is_readable = os.access(file_path, os.R_OK)
-        file_size = file_path.stat().st_size if is_readable else 0
+        is_readable = False
+        file_size = 0
+        try:
+            is_readable = os.access(file_path, os.R_OK)
+            file_size = file_path.stat().st_size if is_readable else 0
+        except (PermissionError, OSError):
+            is_readable = False
+            file_size = 0
 
         file_hash = ""
         is_duplicate = False
         duplicate_info = None
 
         if is_readable and file_size > 0:
-            file_hash = compute_sha256(file_path)
-            prior = self.state.is_hash_uploaded(file_hash)
-            if prior:
-                is_duplicate = True
-                duplicate_info = prior
+            try:
+                file_hash = compute_sha256(file_path)
+                prior = self.state.is_hash_uploaded(file_hash)
+                if prior:
+                    is_duplicate = True
+                    duplicate_info = prior
+            except (PermissionError, OSError):
+                is_readable = False
 
         return DetectedClip(
             path=file_path,
@@ -189,7 +224,24 @@ class ClipDetector:
         for idx, clip in enumerate(detection.clips, start=1):
             clip_id = f"{batch_id}_clip_{idx:02d}"
             target_path = batch_processing_dir / clip.filename
-            shutil.move(str(clip.path), str(target_path))
+
+            # Resilient move with retry backoff for cloud sync locks (OneDrive/Google Drive)
+            moved = False
+            for attempt in range(3):
+                try:
+                    shutil.move(str(clip.path), str(target_path))
+                    moved = True
+                    break
+                except (PermissionError, OSError):
+                    time.sleep(1)
+
+            if not moved:
+                shutil.copy2(str(clip.path), str(target_path))
+                try:
+                    clip.path.unlink()
+                except Exception:
+                    pass
+
             staged_paths.append(target_path)
 
             self.state.register_clip(
