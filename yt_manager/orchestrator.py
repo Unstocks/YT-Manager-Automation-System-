@@ -26,6 +26,7 @@ from .metadata import SEOMetadataGenerator, VideoMetadata
 from .notifier import Notifier
 from .reporter import ClipExecutionReport, DailyBatchReport, ReportGenerator
 from .state import StateManager
+from .transformer import MediaTransformer
 from .understanding import ContentUnderstanding, VideoUnderstandingEngine
 from .uploader import YouTubeUploader
 from .verifier import VideoVerifier
@@ -68,6 +69,7 @@ class WorkflowOrchestrator:
 
         self.state = StateManager(self.config.db_path)
         self.detector = ClipDetector(self.config, self.state)
+        self.transformer = MediaTransformer(self.config)
         self.inspector = MediaInspector()
         self.understanding_engine = VideoUnderstandingEngine(self.config.gemini_api_key)
         self.metadata_generator = SEOMetadataGenerator(self.config)
@@ -293,14 +295,33 @@ class WorkflowOrchestrator:
         work_dir = video_path.parent / f"work_{clip_id}"
 
         try:
+            # 0. Anti-Copyright Media Transformation (Speedup, Micro-Zoom/Crop, Color Pop, Audio Loudnorm)
+            active_video_path = video_path
+            if self.config.enable_video_transformer and not self.mock_mode:
+                self.notifier.notify(
+                    event="TRANSFORMING",
+                    title=f"Transforming Video {index}",
+                    message=f"Applying anti-copyright filters & audio loudness normalization on {original_filename}...",
+                    batch_id=batch_id,
+                )
+                transformed_path = work_dir / f"transformed_{original_filename}"
+                t_res = self.transformer.transform_clip(video_path, transformed_path)
+                if t_res.success and t_res.transformed:
+                    active_video_path = t_res.output_path
+                    self.state.log(
+                        batch_id,
+                        "INFO",
+                        f"Clip {clip_id} successfully transformed for anti-copyright ({t_res.processing_time_seconds:.2f}s).",
+                    )
+
             # 1. Media Inspection
             self.notifier.notify(
                 event="INSPECTING",
                 title=f"Inspecting Video {index}",
-                message=f"Extracting technical metrics and frames from {original_filename}...",
+                message=f"Extracting technical metrics and frames from {active_video_path.name}...",
                 batch_id=batch_id,
             )
-            inspection = self.inspector.inspect(video_path, work_dir=work_dir)
+            inspection = self.inspector.inspect(active_video_path, work_dir=work_dir)
 
             # 2. AI Content Understanding
             self.notifier.notify(
@@ -354,7 +375,7 @@ class WorkflowOrchestrator:
                     )
 
             upload_result = self.uploader.upload_video(
-                video_path=video_path,
+                video_path=active_video_path,
                 metadata=metadata,
                 progress_callback=on_progress,
             )

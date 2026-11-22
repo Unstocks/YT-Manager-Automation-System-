@@ -66,6 +66,17 @@ class YTManagerConfig:
     enable_creator_comment: bool = True
     creator_comment_template: str = ""
 
+    # High-Fidelity Anti-Copyright Media Transformer Config
+    enable_video_transformer: bool = True
+    transform_speed_factor: float = 1.04
+    transform_crop_percent: float = 3.0
+    transform_contrast: float = 1.04
+    transform_brightness: float = 0.01
+    transform_saturation: float = 1.06
+    transform_crf: int = 17
+    transform_preset: str = "fast"
+    enable_audio_enhancer: bool = True
+
     # High-Velocity Business & Viral Hashtags for Shorts
     default_hashtags: List[str] = field(
         default_factory=lambda: [
@@ -185,6 +196,15 @@ class YTManagerConfig:
             max_clip_duration_seconds=float(loaded_data.get("max_clip_duration_seconds", 120.0)),
             enable_creator_comment=bool(loaded_data.get("enable_creator_comment", True)),
             creator_comment_template=str(loaded_data.get("creator_comment_template", "")),
+            enable_video_transformer=bool(loaded_data.get("enable_video_transformer", True)),
+            transform_speed_factor=float(loaded_data.get("transform_speed_factor", 1.04)),
+            transform_crop_percent=float(loaded_data.get("transform_crop_percent", 3.0)),
+            transform_contrast=float(loaded_data.get("transform_contrast", 1.04)),
+            transform_brightness=float(loaded_data.get("transform_brightness", 0.01)),
+            transform_saturation=float(loaded_data.get("transform_saturation", 1.06)),
+            transform_crf=int(loaded_data.get("transform_crf", 17)),
+            transform_preset=str(loaded_data.get("transform_preset", "fast")),
+            enable_audio_enhancer=bool(loaded_data.get("enable_audio_enhancer", True)),
             default_hashtags=list(
                 loaded_data.get(
                     "default_hashtags",
@@ -233,6 +253,15 @@ class YTManagerConfig:
                 "max_clip_duration_seconds": self.max_clip_duration_seconds,
                 "enable_creator_comment": self.enable_creator_comment,
                 "creator_comment_template": self.creator_comment_template,
+                "enable_video_transformer": self.enable_video_transformer,
+                "transform_speed_factor": self.transform_speed_factor,
+                "transform_crop_percent": self.transform_crop_percent,
+                "transform_contrast": self.transform_contrast,
+                "transform_brightness": self.transform_brightness,
+                "transform_saturation": self.transform_saturation,
+                "transform_crf": self.transform_crf,
+                "transform_preset": self.transform_preset,
+                "enable_audio_enhancer": self.enable_audio_enhancer,
                 "default_hashtags": self.default_hashtags,
             }
             with open(settings_file, "w", encoding="utf-8") as f:
