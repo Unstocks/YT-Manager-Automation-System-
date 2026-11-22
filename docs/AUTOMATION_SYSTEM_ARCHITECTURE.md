@@ -25,6 +25,7 @@ The **Unstocks Autonomous Upload Engine** is an enterprise-grade, zero-to-one pi
 | :--- | :--- | :--- | :--- |
 | **Ingestion** | OneDrive Cloud Sync | Mobile App ➔ OneDrive Cloud ➔ Windows Local Client (`OneDrive.exe`) | Seamless remote clip deposit from smartphone without local scripts |
 | **Storage & Tracking** | Directory Hierarchy & SQLite | `data/catalog.db`, `inbox/`, `processing/`, `uploaded/`, `failed/` | Clip state machine, SHA-256 deduplication, and archival |
+| **Media Transformation** | Anti-Copyright Media Transformer | FFmpeg (`libx264`, CRF 17, Lanczos, `atempo`, `loudnorm`) | Studio-grade micro-zoom, tempo shift, color pop, and -14 LUFS broadcast loudness |
 | **Inspection** | Media Inspector | `ffprobe` binary wrapped in subprocess execution | Extraction of duration, dimensions, vertical aspect ratio (9:16), FPS, codecs |
 | **AI Vision** | Video Understanding Engine | Gemini 1.5 REST API (`urllib.request`) + Local Fallback | Detection of featured brand, core moat, key takeaways, and on-screen text |
 | **SEO & Copywriting** | SEO Metadata Generator | Python RegEx, High-RPM templates, dynamic hashtag scoring | Generation of brand-first titles (<80 chars), 6-stage descriptions, and tags (<500 chars) |
@@ -118,6 +119,27 @@ flowchart TD
 - **Aspect Ratio:** Vertical format required (`height >= width`, typically `720x1280` or `1080x1920`).
 - **Format:** MP4, MOV, WebM, or MKV with H.264 / AAC compatibility.
 - **Deduplication:** SHA-256 binary hash stored in SQLite table `video_catalog`.
+
+---
+
+### Process 1b: Anti-Copyright Media Transformation (yt_manager/transformer.py)
+
+Before inspection and AI understanding, every candidate clip undergoes near-lossless media transformation to neutralize automated Content ID hashes while preserving studio-grade visual clarity:
+
+1. **Temporal Hash Disruption (1.04x Speed):**
+   * Video timestamps shifted via `setpts=PTS/1.040`.
+   * Audio tempo shifted via `atempo=1.040` (pitch-preserved; zero chipmunk effect).
+2. **Spatial Hash Disruption (Lanczos Micro-Zoom & Crop):**
+   * Scaled by 103% using Lanczos sinc-interpolation (`flags=lanczos`) to keep kinetic typography needle-sharp.
+   * 3% perimeter crop (`crop=iw/1.03:ih/1.03`) destroys fixed pixel coordinate hashes.
+3. **Histogram Shift:**
+   * Gentle color grade curve: `eq=contrast=1.04:brightness=0.01:saturation=1.06`.
+4. **EBU R128 Broadcast Loudness Normalization:**
+   * Highpass rumble filter (`highpass=f=75`) removes microphone hum without touching vocal warmth.
+   * Dynamic leveler (`dynaudnorm=f=125:g=15:p=0.95:m=10.0:r=0.9`) balances dynamic range.
+   * Target `-14 LUFS` (`loudnorm=I=-14:TP=-1.5:LRA=11`) prevents YouTube's server-side volume penalty.
+5. **Fail-Safe Fallback:**
+   * If FFmpeg returns an error on an unusual codec, the engine catches the exception and falls back to uploading the raw clip, guaranteeing zero batch stalls.
 
 ---
 

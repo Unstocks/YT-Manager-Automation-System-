@@ -127,6 +127,7 @@ YT-Manager/
     ├── reporter.py             # Audit-ready daily markdown/text reporter
     ├── scheduler.py            # Task Scheduler & daemon manager
     ├── state.py                # Transactional SQLite state ledger
+    ├── transformer.py          # High-Fidelity Anti-Copyright & Audio Loudness Engine
     ├── understanding.py        # Gemini Vision & content analysis
     ├── uploader.py             # Chunked YouTube Data API v3 uploader
     └── verifier.py             # Post-upload catalog indexing verifier
@@ -149,7 +150,7 @@ To prevent credential leaks, the repository enforces strict security protocols:
 
 ## 🧪 Automated Test Suite
 
-Run the full suite of **35 tests** covering detection, inspection, understanding, SEO generation, resumable upload, and scheduling:
+Run the full suite of **40 tests** covering detection, inspection, understanding, SEO generation, resumable upload, media transformation, and scheduling:
 
 ```powershell
 python -m unittest discover tests
@@ -157,8 +158,8 @@ python -m unittest discover tests
 
 Output:
 ```text
-Ran 35 tests in 32.733s
-OK (35/35 passing, 0 errors, 0 failures)
+Ran 40 tests in 71.780s
+OK (40/40 passing, 0 errors, 0 failures)
 ```
 
 ---
