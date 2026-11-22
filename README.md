@@ -1,78 +1,74 @@
-# YT Manager Automation System
+# Unstocks YT Manager Automation System
 
-> **Autonomous YouTube Metadata Engineering & Daily Upload Automation**  
-> Engineered for **Unstocks** (`@unstocks` / `UCT0tm0KSB2BlIjdY6uUZCeA`). Built on principles of **Lindy Durability**, Zero External Python Dependencies, and Resilient Automation.
+> **Autonomous YouTube Shorts Intelligence, Brand Strategy Engine & Daily Upload Pipeline**  
+> Engineered for **Unstocks** (`@unstocks` / `UCT0tm0KSB2BlIjdY6uUZCeA`). Built on principles of **Lindy Durability**, Zero External Dependencies, Multimodal AI Analysis, and Resilient Automation.
 
 ---
 
-## 🏛️ System Architecture & Philosophy
+## 🏛️ System Overview & Philosophy
 
-YT Manager is an autonomous desktop engine designed to manage daily YouTube video uploads for Unstocks at **6:00 PM IST (Asia/Kolkata)**.
+**YT Manager** is an autonomous desktop engine designed to operate the daily publishing pipeline for Unstocks at **6:00 PM IST (Asia/Kolkata)**.
 
-The user provides **exactly two video clips** daily into `YT-Manager/inbox/`. YT Manager detects the clips, performs deep content understanding, crafts SEO-optimized titles, descriptions, tags, and hashtags, uploads both videos directly to the specified YouTube channel via the official YouTube Data API v3, verifies their public catalog registration, and records execution status.
-
-### Key Architectural Invariants
-- **Zero External Python Dependencies:** Implemented strictly using the Python 3.14+ standard library (`urllib`, `sqlite3`, `http.server`, `hashlib`, `subprocess`) alongside system FFmpeg. No fragile pip packages that break across runtime updates.
-- **Strict Channel ID Security Guard:** Hardcoded security gating ensures uploads are strictly rejected unless authenticated against Channel ID `UCT0tm0KSB2BlIjdY6uUZCeA` (`@unstocks`).
-- **Transactional State Management:** Every batch, clip, SHA-256 hash, and upload status is atomically recorded in SQLite (`data/yt_manager.db`) to ensure zero duplicate uploads.
-- **Strict 2-Clip Daily Rule:** Validates that exactly 2 valid, un-uploaded clips exist in `inbox/`. Rejects partial batches (<2) with desktop alerts; detects ambiguity if excess clips exist.
-- **Zero Video Alteration:** The original video content is never modified, edited, or re-encoded. Videos are uploaded exactly as prepared by the creator.
+You simply drop your video clips into your **OneDrive `YT-Inbox`** (from your phone or PC). The engine handles everything else:
+1. Validates clips and resolves cloud sync locks.
+2. Performs deep multimodal AI frame and voiceover analysis to extract business entities (e.g. Netflix, Zoom, Apple), on-screen text, core thesis, and metrics.
+3. Generates high-hook titles with brand names, structured descriptions, chapters, and 15+ algorithmic tags.
+4. Uploads directly to YouTube via the official YouTube Data API v3 as private drafts for founder review.
+5. Posts an automated, pinned engagement comment to jumpstart the algorithm.
+6. Archives uploaded files cleanly and logs state in SQLite.
 
 ```mermaid
 flowchart TD
-    A["Daily Input Folder (inbox/)"] --> B{"Validate Exactly 2 Clips"}
-    B -- "< 2 Clips" --> C["Log Missing & Send Alert"]
-    B -- "> 2 Clips" --> D["Report Ambiguity"]
-    B -- "== 2 Clips" --> E["Media Inspection (ffprobe/ffmpeg)"]
-    E --> F["AI Content Understanding (Frames, Audio, Topic)"]
-    F --> G["SEO Metadata Generation (Title, Description, Tags)"]
-    G --> H["Resumable Upload Video 1 (YouTube Data API v3)"]
-    H --> I["Post-Upload Verification Video 1"]
-    I --> J["Resumable Upload Video 2 (YouTube Data API v3)"]
-    J --> K["Post-Upload Verification Video 2"]
-    K --> L["Move to uploaded/ & Save State to SQLite"]
-    L --> M["Generate Daily Report & Windows Toast Notification"]
+    A["Phone / Mobile Drop"] --> B["OneDrive (YT-Inbox)"]
+    B --> C{"Daily Active Window<br/>(18:00 – 23:59 IST)"}
+    C -- "Outside Window" --> D["Safe Deferral (Clips Remain in Inbox)"]
+    C -- "Active Window" --> E{"Duplicate Check (Idempotency)"}
+    E -- "Already Completed Today" --> F["Skip Cleanly (Zero Duplicate Uploads)"]
+    E -- "Ready for Today" --> G["Pre-Flight Sync Lock & Duration Check"]
+    G --> H["Multimodal Frame & Audio Understanding"]
+    H --> I["SEO Generation (Brand Title, Description, Tags)"]
+    I --> J["Resumable YouTube Upload (Data API v3)"]
+    J --> K["Catalog Verification & First-Comment"]
+    K --> L["Atomic Archive (archive/YYYY-MM-DD/)"]
+    L --> M["SQLite State Log & Windows Toast Alert"]
 ```
 
 ---
 
-## ⚡ Core Modules
+## ⚡ Core Invariants & Safety Rules
 
-### 1. Ingestion & Gatekeeper (`yt_manager/detector.py`)
-- Scans `inbox/` for supported media (`.mp4`, `.mov`, `.mkv`, `.webm`, `.avi`, `.m4v`).
-- Computes SHA-256 checksums to guarantee deduplication against all historical uploads.
-- Validates that exactly 2 valid, un-uploaded clips are staged for today's batch.
+- **Zero External Python Dependencies:** Built strictly using the Python standard library (`urllib`, `sqlite3`, `http.server`, `hashlib`, `subprocess`) alongside system FFmpeg. No fragile pip dependencies that break with runtime upgrades.
+- **Strict Channel ID Locking:** Hardcoded gating ensures uploads are strictly rejected unless authenticated against Channel ID `UCT0tm0KSB2BlIjdY6uUZCeA` (`@unstocks`).
+- **Channel Safety & Zero Video Deletion:** Never deletes any video from the YouTube channel. Founder's 7 pre-existing videos (`4BOb54sA3tU`, `01jbghiEoHQ`, `SWXapEplm6A`, `3qCxQVjqqXA`, `hSVH1wVn9Dc`, `WenjGzmdJD8`, `4mRN_2Z1D2I`) remain 100% untouched.
+- **Transactional State Management:** Every batch, clip, SHA-256 hash, and upload status is recorded in SQLite (`data/yt_manager.db`) to ensure zero duplicate uploads.
+- **WakeToRun & Wi-Fi Resilience:** Windows Task Scheduler wakes the system from sleep at 18:00 IST and provides a 30-second Wi-Fi handshake grace period before API operations.
+- **Secrets Hardening:** Strict `.gitignore` rules prevent `.env`, OAuth tokens, credentials, and SQLite databases from ever reaching GitHub. Validated with `scripts/security_audit.py`.
 
-### 2. Media Inspector (`yt_manager/inspector.py`)
-- Uses `ffprobe` to extract resolution, aspect ratio, duration, codecs, FPS, and bitrate.
-- Detects YouTube Shorts formatting (aspect ratio ≤ 1.05 and duration ≤ 60s).
-- Extracts keyframe samples and audio stream for content analysis.
+---
 
-### 3. AI Video Understanding Engine (`yt_manager/understanding.py`)
-- Analyzes actual video content across keyframes, on-screen text, audio, and visual themes.
-- Enforces the **Critical Accuracy Rule**: never invents facts, quotes, or statistics not established in the clip.
-- Supports sidecar context files (`<clip_name>.json` or `<clip_name>.txt`), multimodal Gemini Vision API, and deterministic content-grounded inspection.
+## 🎮 Master Operational Console (`LAUNCH_UNSTOCKS.bat`)
 
-### 4. SEO Metadata Generator (`yt_manager/metadata.py`)
-- Independently generates for each clip:
-  - **Title**: High-CTR, search-optimized, strong opening keywords, no clickbait, concise (<80 chars), with `#Shorts` for vertical clips. Exactly 1 recommended title.
-  - **Description**: 6-tier structured description (compelling opening hook, concise explanation, naturally incorporated search keywords, additional context, Unstocks CTA, and relevant hashtags).
-  - **Tags**: Niche search keywords and entities strictly under 500 characters.
-  - **Category & Language**: Dynamic assignment (e.g. Science & Tech `28`, Education `27`, Language `en`).
-- Serializes complete metadata to `metadata/<clip_id>.json`.
+All operations are unified into a single interactive master console in the root directory:
 
-### 5. Official YouTube Resumable Uploader (`yt_manager/uploader.py` & `auth.py`)
-- Official YouTube Data API v3 resumable chunked protocol (256 KB multiples).
-- Automatic recovery via HTTP 308 queries on dropped network connections with exponential backoff.
-- Mandatory Channel ID check against `UCT0tm0KSB2BlIjdY6uUZCeA` before uploading.
+```text
+=====================================================================
+                   UNSTOCKS AUTOMATION CONSOLE
+=====================================================================
+  Target Channel: @unstocks (UCT0tm0KSB2BlIjdY6uUZCeA)
+  Schedule: 18:00 IST Daily + Boot Catch-up
+=====================================================================
 
-### 6. Post-Upload Verifier (`yt_manager/verifier.py`)
-- Polls YouTube API to verify catalog entry, processing status, and public accessibility.
-- Captures exact rejection reasons if a video is restricted or rejected.
-
-### 7. Persistent Scheduler (`yt_manager/scheduler.py`)
-- Windows Task Scheduler integration (`scripts/install_scheduler.ps1`): Triggers daily at 6:00 PM IST (18:00 Asia/Kolkata).
-- Standalone background daemon mode with automatic retry intervals if clips are incomplete.
+  [1] Run Today's Upload Batch (Manual Execution)
+  [2] Install / Verify Windows Task Scheduler (18:00 IST)
+  [3] Survey Channel Videos (Refresh Inventory)
+  [4] Apply Targeted Upgrade to Uploaded Clips Only
+  [5] Restore Video Metadata from Plan
+  [6] Connect / Setup OneDrive Inbox
+  [7] Run Full Test Suite (35 Tests)
+  [8] Check System & Inbox Status
+  [0] Exit
+=====================================================================
+```
 
 ---
 
@@ -80,79 +76,103 @@ flowchart TD
 
 ```
 YT-Manager/
+├── LAUNCH_UNSTOCKS.bat         # Unified Master Operational Console
+├── README.md                   # System documentation & architectural reference
+├── pyproject.toml              # Project configuration & test discovery
+├── .env.example                # Safe environment variable configuration template
+├── .gitignore                  # Fortified secrets & credential exclusion rules
 ├── config/
-│   ├── settings.json              # Active configuration & channel targets
-│   ├── settings.example.json      # Template settings
-│   ├── client_secrets.example.json# Template OAuth 2.0 credentials
-│   ├── client_secrets.json        # Google OAuth client secrets (gitignored)
-│   └── token.json                 # Persistent OAuth token store (gitignored)
+│   ├── settings.json           # Active local configuration & channel targets
+│   ├── settings.example.json   # Template settings
+│   ├── client_secrets.example.json # Template Google OAuth credentials
+│   ├── client_secrets.json     # Google OAuth credentials (gitignored)
+│   └── token.json              # Persistent OAuth tokens (gitignored)
 ├── data/
-│   └── yt_manager.db              # SQLite transactional state store (gitignored)
-├── docs/                          # Master Reports
+│   ├── channel_inventory.json  # Live YouTube channel inventory
+│   ├── channel_inventory.md    # Human-readable channel survey report
+│   ├── restore_plan.json       # Metadata restoration mapping
+│   └── yt_manager.db           # SQLite state database (gitignored)
+├── docs/
+│   ├── AUTOMATION_SYSTEM_ARCHITECTURE.md # Full technical & architectural bible
+│   ├── UNSTOCKS_CHANNEL_BIBLE.md         # Content & brand positioning bible
 │   ├── MASTER_REPORT_1_SYSTEM_AUDIT_AND_ARCHITECTURE.md
 │   ├── MASTER_REPORT_2_IMPLEMENTATION_AND_TESTING.md
 │   └── MASTER_REPORT_3_DEPLOYMENT_AND_OPERATIONS.md
-├── inbox/                         # User drop folder for daily 2 video clips
-├── processing/                    # Atomic staging workspace
-├── uploaded/                      # Permanent archival of successfully uploaded clips
-├── failed/                        # Quarantine directory for inspection failures
-├── logs/                          # System execution logs & daily reports
-│   ├── yt_manager.log
-│   └── reports/
-├── metadata/                      # Generated clip metadata JSON documents
-├── scripts/                       # Helper scripts (install_scheduler.ps1, run_daily.ps1)
-├── tests/                         # Automated test suite (18 unit/integration tests)
-└── yt_manager/                    # Pure Python core engine
+├── inbox/                      # Local fallback video inbox
+├── processing/                 # Atomic staging directory during upload
+├── uploaded/                   # Completed batches
+├── failed/                     # Quarantined failures
+├── logs/                       # Execution logs & daily reports
+├── scripts/
+│   ├── install_scheduler.ps1   # Windows Task Scheduler installer (18:00 IST)
+│   ├── setup_onedrive_inbox.ps1# OneDrive direct inbox connector & inventory
+│   ├── security_audit.py       # Pre-push automated secret scanner
+│   ├── survey_channel.py       # Live channel video inventory scanner
+│   ├── upgrade_uploaded_clips_only.py # Targeted metadata engine for pipeline clips
+│   └── restore_video_metadata.py      # Video metadata rollback engine
+├── tests/                      # Full test suite (35 automated tests)
+│   ├── fixtures/               # Isolated test media assets
+│   └── test_*.py
+└── yt_manager/                 # Pure Python automation core
     ├── __init__.py
     ├── __main__.py
-    ├── auth.py
-    ├── cli.py
-    ├── config.py
-    ├── detector.py
-    ├── inspector.py
-    ├── metadata.py
-    ├── notifier.py
-    ├── orchestrator.py
-    ├── reporter.py
-    ├── scheduler.py
-    ├── state.py
-    ├── understanding.py
-    ├── uploader.py
-    └── verifier.py
+    ├── auth.py                 # OAuth 2.0 flow & channel validation
+    ├── cli.py                  # Command-line interface & dispatch
+    ├── config.py               # Settings loader & environment overrides
+    ├── detector.py             # Inbox scanner, FIFO buffer & sync lock guard
+    ├── inspector.py            # FFprobe metrics & frame extraction
+    ├── metadata.py             # Multimodal SEO & brand metadata generator
+    ├── notifier.py             # Windows Toast & webhook dispatch
+    ├── orchestrator.py         # End-to-end pipeline coordinator
+    ├── reporter.py             # Audit-ready daily markdown/text reporter
+    ├── scheduler.py            # Task Scheduler & daemon manager
+    ├── state.py                # Transactional SQLite state ledger
+    ├── understanding.py        # Gemini Vision & content analysis
+    ├── uploader.py             # Chunked YouTube Data API v3 uploader
+    └── verifier.py             # Post-upload catalog indexing verifier
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🔒 Security & Secrets Hygiene
 
-### 1. Authenticate YouTube Account (One-Time)
+To prevent credential leaks, the repository enforces strict security protocols:
+
+1. **Zero Secret Tracking:**
+   * `.env`, `*client_secrets.json`, `*token.json`, and `*.db` are strictly excluded in `.gitignore`.
+2. **Pre-Push Security Audit:**
+   * Run `python scripts/security_audit.py` before pushing to GitHub. It inspects all Git-tracked files for API keys, tokens, and sensitive patterns.
+3. **Environment Overrides:**
+   * Use `.env` (copied from `.env.example`) to pass `GEMINI_API_KEY` or `YT_PRIVACY_STATUS` without committing secrets to source control.
+
+---
+
+## 🧪 Automated Test Suite
+
+Run the full suite of **35 tests** covering detection, inspection, understanding, SEO generation, resumable upload, and scheduling:
+
 ```powershell
-python -m yt_manager auth
+python -m unittest discover tests
 ```
 
-### 2. Verify Status
-```powershell
-python -m yt_manager status
+Output:
+```text
+Ran 35 tests in 32.733s
+OK (35/35 passing, 0 errors, 0 failures)
 ```
 
-### 3. Place 2 Clips in Inbox
-Drop your two daily video files (e.g. `clip_01.mp4` and `clip_02.mp4`) into:
-```
-C:\Users\sanja\.gemini\antigravity\scratch\YT-Manager\inbox\
-```
+---
 
-### 4. Run Batch Manually or Test in Mock Mode
-```powershell
-# Run in mock mode (dry run)
-python -m yt_manager run --mock
+## 🚀 Quick Start Guide
 
-# Run live production upload
-python -m yt_manager run
-```
+### 1. Launch the Console
+Double-click `LAUNCH_UNSTOCKS.bat` in the project root.
 
-### 5. Install Persistent Windows Daily Scheduler (6:00 PM IST)
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install_scheduler.ps1
-# OR
-python -m yt_manager schedule --install
-```
+### 2. Connect Your Mobile OneDrive Folder
+Select **`[6]`** to connect to `C:\Users\<user>\OneDrive\YT-Inbox`. Any video dropped into this folder from your phone will automatically be queued.
+
+### 3. Verify System Health
+Select **`[8]`** to check channel match, schedule status, and clips waiting in the inbox.
+
+### 4. Let the Scheduler Run Daily
+At **18:00 IST (6:00 PM)**, the engine wakes up automatically, uploads today's 2 clips as private drafts, posts the creator comment, and alerts you when finished.
