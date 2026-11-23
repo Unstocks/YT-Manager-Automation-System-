@@ -151,6 +151,12 @@ class VideoUnderstandingEngine:
                     logger.warning("Gemini Vision returned empty candidates list. Falling back to local analysis.")
                     return None
             except urllib.error.HTTPError as he:
+                error_body = ""
+                try:
+                    error_body = he.read().decode("utf-8")
+                except Exception:
+                    pass
+
                 is_transient = he.code in (429, 500, 502, 503, 504)
                 if is_transient and attempt < max_attempts:
                     logger.warning(
@@ -159,7 +165,14 @@ class VideoUnderstandingEngine:
                     )
                     time.sleep(2)
                     continue
-                logger.warning(f"Gemini API HTTP error {he.code}: {he.reason}. Falling back to local analysis.")
+
+                if he.code == 402:
+                    logger.error(
+                        f"Gemini API HTTP 402 (Payment Required): Google AI Studio / Google Cloud project prepayment credits are depleted ($0.00). "
+                        f"To fix: Create a 100% free API key in a new unbilled project at https://aistudio.google.com/apikey, or top up prepaid credits. Details: {error_body}"
+                    )
+                else:
+                    logger.warning(f"Gemini API HTTP error {he.code}: {he.reason}. Details: {error_body}. Falling back to local analysis.")
                 return None
             except (urllib.error.URLError, TimeoutError) as ue:
                 if attempt < max_attempts:
@@ -178,30 +191,41 @@ class VideoUnderstandingEngine:
         return None
 
     def _check_sidecar_context(self, video_path: Path) -> Optional[Dict[str, Any]]:
-        """Checks for accompanying .json or .txt sidecar metadata next to the video."""
-        # 1. Check for <name>.json
-        json_sidecar = video_path.with_suffix(".json")
-        if json_sidecar.exists():
-            try:
-                with open(json_sidecar, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
+        """Checks for accompanying .json or .txt sidecar metadata next to the video or in parent batch directories."""
+        clean_name = video_path.name
+        if clean_name.startswith("transformed_"):
+            clean_name = clean_name[len("transformed_"):]
 
-        # 2. Check for <name>.txt (raw notes or transcript)
-        txt_sidecar = video_path.with_suffix(".txt")
-        if txt_sidecar.exists():
-            try:
-                with open(txt_sidecar, "r", encoding="utf-8") as f:
-                    content = f.read().strip()
-                if content:
-                    return {
-                        "summary": content[:500],
-                        "spoken_dialogue": content,
-                        "central_topic": content.splitlines()[0][:100],
-                    }
-            except Exception:
-                pass
+        search_locations = [
+            video_path.with_suffix(".json"),
+            video_path.with_suffix(".txt"),
+            video_path.parent / Path(clean_name).with_suffix(".json"),
+            video_path.parent / Path(clean_name).with_suffix(".txt"),
+            video_path.parent.parent / Path(clean_name).with_suffix(".json"),
+            video_path.parent.parent / Path(clean_name).with_suffix(".txt"),
+        ]
+
+        for cand in search_locations:
+            if not cand.exists():
+                continue
+            if cand.suffix == ".json":
+                try:
+                    with open(cand, "r", encoding="utf-8") as f:
+                        return json.load(f)
+                except Exception:
+                    pass
+            elif cand.suffix == ".txt":
+                try:
+                    with open(cand, "r", encoding="utf-8") as f:
+                        content = f.read().strip()
+                    if content:
+                        return {
+                            "summary": content[:500],
+                            "spoken_dialogue": content,
+                            "central_topic": content.splitlines()[0][:100],
+                        }
+                except Exception:
+                    pass
 
         return None
 
