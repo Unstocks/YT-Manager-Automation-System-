@@ -191,41 +191,42 @@ class VideoUnderstandingEngine:
         return None
 
     def _check_sidecar_context(self, video_path: Path) -> Optional[Dict[str, Any]]:
-        """Checks for accompanying .json or .txt sidecar metadata next to the video or in parent batch directories."""
-        clean_name = video_path.name
-        if clean_name.startswith("transformed_"):
-            clean_name = clean_name[len("transformed_"):]
+        """Checks for accompanying .json or .txt sidecar metadata next to the video."""
+        stem = video_path.stem
+        clean_stem = stem[len("transformed_"):] if stem.startswith("transformed_") else stem
 
-        search_locations = [
-            video_path.with_suffix(".json"),
-            video_path.with_suffix(".txt"),
-            video_path.parent / Path(clean_name).with_suffix(".json"),
-            video_path.parent / Path(clean_name).with_suffix(".txt"),
-            video_path.parent.parent / Path(clean_name).with_suffix(".json"),
-            video_path.parent.parent / Path(clean_name).with_suffix(".txt"),
-        ]
+        candidate_dirs = [video_path.parent, video_path.parent.parent]
+        candidate_stems = [stem, clean_stem]
 
-        for cand in search_locations:
-            if not cand.exists():
-                continue
-            if cand.suffix == ".json":
-                try:
-                    with open(cand, "r", encoding="utf-8") as f:
-                        return json.load(f)
-                except Exception:
-                    pass
-            elif cand.suffix == ".txt":
-                try:
-                    with open(cand, "r", encoding="utf-8") as f:
-                        content = f.read().strip()
-                    if content:
-                        return {
-                            "summary": content[:500],
-                            "spoken_dialogue": content,
-                            "central_topic": content.splitlines()[0][:100],
-                        }
-                except Exception:
-                    pass
+        # 1. Check for .json sidecars
+        for d in candidate_dirs:
+            for s in candidate_stems:
+                json_candidate = d / f"{s}.json"
+                if json_candidate.exists() and json_candidate.is_file():
+                    try:
+                        with open(json_candidate, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                            if data:
+                                return data
+                    except Exception:
+                        pass
+
+        # 2. Check for .txt sidecars (raw notes or transcript)
+        for d in candidate_dirs:
+            for s in candidate_stems:
+                txt_candidate = d / f"{s}.txt"
+                if txt_candidate.exists() and txt_candidate.is_file():
+                    try:
+                        with open(txt_candidate, "r", encoding="utf-8") as f:
+                            content = f.read().strip()
+                        if content:
+                            return {
+                                "summary": content[:500],
+                                "spoken_dialogue": content,
+                                "central_topic": content.splitlines()[0][:100],
+                            }
+                    except Exception:
+                        pass
 
         return None
 
@@ -276,7 +277,46 @@ class VideoUnderstandingEngine:
                 is_fallback=False,
             )
 
-        # 2. Attempt Gemini Multimodal Vision API if key is available
+        # 2. Local Audio Speech Transcription (Offline Whisper)
+        try:
+            from .transcriber import AudioTranscriber
+            transcriber = AudioTranscriber()
+            if transcriber.is_available():
+                transcript = transcriber.transcribe(inspection.file_path)
+                if transcript:
+                    parsed = transcriber.parse_transcript_into_context(transcript)
+                    sub = parsed["subject"]
+                    topic = parsed["central_topic"]
+                    brand = parsed["featured_brand"]
+                    moat = parsed["strategic_moat"]
+                    dialogue = parsed["spoken_dialogue"]
+                    ents = parsed["entities"]
+                    takeaway_text = parsed["main_takeaway"]
+                    summ = f"{sub}: {takeaway_text}"
+
+                    logger.info(f"Verified context via Local Audio Transcription: '{sub}' (Confidence: 0.95)")
+                    return ContentUnderstanding(
+                        subject=sub,
+                        central_topic=topic,
+                        featured_brand=brand,
+                        strategic_moat=moat,
+                        on_screen_text=[],
+                        spoken_dialogue=dialogue,
+                        entities=ents,
+                        intended_audience="Founders, Brand Builders, Operators, Marketers",
+                        main_takeaway=takeaway_text,
+                        category_id="27",
+                        category_name="Education",
+                        language="en",
+                        is_short=inspection.is_short,
+                        confidence=0.95,
+                        summary=summ,
+                        is_fallback=False,
+                    )
+        except Exception as e:
+            logger.warning(f"Audio transcription step encountered error: {e}")
+
+        # 3. Attempt Gemini Multimodal Vision API if key is available
         if self.api_key:
             gemini_prompt = """
 Analyze the provided video frames for a high-retention Business, Brand Strategy & Monetization YouTube Short.

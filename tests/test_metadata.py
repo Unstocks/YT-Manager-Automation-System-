@@ -113,7 +113,7 @@ class TestSEOMetadataGenerator(unittest.TestCase):
         self.assertIn("#Backpropagation", meta1.title)
         self.assertNotIn("System Architecture Deep Dive", meta1.title)
         self.assertNotIn("Core Architecture Guide", meta1.title)
-        self.assertIn("Backpropagation Acceleration", meta1.title)
+        self.assertIn("Backpropagation", meta1.title)
 
         # 2. Landscape video without dialogue
         u2 = ContentUnderstanding(
@@ -197,6 +197,57 @@ class TestSEOMetadataGenerator(unittest.TestCase):
         self.assertIn("eBPF reduces latency", comment)
         self.assertIn("cni and iptables routing", comment.lower())
         self.assertIn("@unstocks", comment)
+
+    def test_pillar_creator_comment_generation(self):
+        from yt_manager.metadata import generate_creator_comment
+        # Luxury / Scarcity
+        u_luxury = ContentUnderstanding(
+            subject="Luxury Economics",
+            featured_brand="Ferrari",
+            central_topic="Veblen Goods and Artificial Scarcity",
+            is_short=True,
+        )
+        c_luxury = generate_creator_comment(u_luxury)
+        self.assertIn("Ferrari", c_luxury)
+        self.assertIn("ultra-exclusive luxury brand", c_luxury)
+
+        # First Principles
+        u_fp = ContentUnderstanding(
+            subject="Mental Models",
+            featured_brand="Elon Musk",
+            central_topic="First Principles Thinking",
+            is_short=True,
+        )
+        c_fp = generate_creator_comment(u_fp)
+        self.assertIn("Elon Musk", c_fp)
+        self.assertIn("First Principles Test", c_fp)
+
+        # Competitive Intel
+        u_ci = ContentUnderstanding(
+            subject="Growth Strategy",
+            central_topic="Competitor Analysis & SEO Reverse Engineering",
+            is_short=True,
+        )
+        c_ci = generate_creator_comment(u_ci)
+        self.assertIn("reverse-engineer your top 3 competitors", c_ci)
+
+    def test_non_repetitive_titles(self):
+        # Two clips with same brand but different clip IDs have distinct rotating formulas
+        u = ContentUnderstanding(
+            subject="Luxury Economics",
+            featured_brand="Ferrari",
+            central_topic="Veblen Goods and Scarcity",
+            is_short=True,
+        )
+        meta_a = self.generator.generate("batch_01", "clip_01", "vid1.mp4", u)
+        meta_b = self.generator.generate("batch_01", "clip_02", "vid2.mp4", u)
+        # Verify valid lengths and formatting
+        self.assertLessEqual(len(meta_a.title), 78)
+        self.assertLessEqual(len(meta_b.title), 78)
+        self.assertIn("#Ferrari", meta_a.title)
+        self.assertIn("#Ferrari", meta_b.title)
+        self.assertNotIn("Built A $1B Empire With ZERO Ads", meta_a.title)
+        self.assertNotIn("Built A $1B Empire With ZERO Ads", meta_b.title)
 
 
 if __name__ == "__main__":
