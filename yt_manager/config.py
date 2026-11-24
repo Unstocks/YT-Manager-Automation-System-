@@ -80,8 +80,13 @@ class YTManagerConfig:
     # High-Velocity Business & Viral Hashtags for Shorts
     default_hashtags: List[str] = field(
         default_factory=lambda: [
-            "Shorts",
+            "shorts",
             "fyp",
+            "fypage",
+            "ytshorts",
+            "youtube",
+            "yt",
+            "viral",
             "Business",
             "BrandStrategy",
             "Marketing",
@@ -90,9 +95,6 @@ class YTManagerConfig:
             "BusinessStrategy",
             "CaseStudy",
             "Money",
-            "ytshorts",
-            "ShortsFeed",
-            "viral",
         ]
     )
 

@@ -31,8 +31,13 @@
     "transform_preset":  "fast",
     "enable_audio_enhancer":  true,
     "default_hashtags":  [
-                             "Shorts",
+                             "shorts",
                              "fyp",
+                             "fypage",
+                             "ytshorts",
+                             "youtube",
+                             "yt",
+                             "viral",
                              "Business",
                              "BrandStrategy",
                              "Marketing",
@@ -40,9 +45,6 @@
                              "Startups",
                              "BusinessStrategy",
                              "CaseStudy",
-                             "Money",
-                             "ytshorts",
-                             "ShortsFeed",
-                             "viral"
+                             "Money"
                          ]
 }

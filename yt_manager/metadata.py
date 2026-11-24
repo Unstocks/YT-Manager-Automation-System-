@@ -209,20 +209,30 @@ class SEOMetadataGenerator:
                 ]
             base_title = formulas[variant % len(formulas)]
 
-        # 3. Dynamic Hashtags for Shorts
+        # 3. Dynamic Hashtags for Shorts: #{content_tag} #shorts #fyp #fypage
         suffix = ""
         if understanding.is_short:
             content_tag = "Business"
-            if brand and 3 <= len(brand) <= 20:
+            if brand and brand.lower() != "unstocks" and 2 <= len(brand) <= 20:
                 clean_b = re.sub(r'[^a-zA-Z0-9]', '', brand)
-                if 3 <= len(clean_b) <= 20:
+                if 2 <= len(clean_b) <= 20:
                     content_tag = clean_b
-            elif topic:
-                first_w = re.sub(r'[^a-zA-Z0-9]', '', topic.split()[0])
-                if 3 <= len(first_w) <= 20:
-                    content_tag = first_w
+            else:
+                # Select high-SEO content keyword from entities or topic
+                best_kw = None
+                for e in understanding.entities:
+                    e_clean = re.sub(r'[^a-zA-Z0-9]', '', e)
+                    if 3 <= len(e_clean) <= 15 and e.lower() not in ("unstocks", "short", "shorts", "video"):
+                        best_kw = e_clean
+                        break
+                if not best_kw and topic:
+                    first_w = re.sub(r'[^a-zA-Z0-9]', '', topic.split()[0])
+                    if 3 <= len(first_w) <= 15:
+                        best_kw = first_w
+                if best_kw:
+                    content_tag = best_kw
 
-            suffix = f" #{content_tag} #shorts #fyp"
+            suffix = f" #{content_tag} #shorts #fyp #fypage"
 
         max_base_len = 78 - len(suffix)  # Enforce strictly <= 78 total characters
 
@@ -380,13 +390,17 @@ class SEOMetadataGenerator:
             f"🌐 Channel: {self.config.channel_url}"
         )
 
-        # Stage 6: Top-Volume Business Hashtag Battery
-        clean_hashtags: List[str] = []
-        if brand and brand != "The World's Best Brands":
+        # Stage 6: Default Core Viral Hashtags + Niche Content SEO Battery
+        core_defaults = ["shorts", "fyp", "fypage", "ytshorts", "youtube", "yt", "viral"]
+        clean_hashtags: List[str] = [t for t in core_defaults]
+
+        # Add brand if relevant
+        if brand and brand.lower() != "unstocks" and brand != "The World's Best Brands":
             b_tag = re.sub(r'[^a-zA-Z0-9]', '', brand)
-            if b_tag and 3 <= len(b_tag) <= 20:
+            if b_tag and 2 <= len(b_tag) <= 20 and b_tag.lower() not in [c.lower() for c in clean_hashtags]:
                 clean_hashtags.append(b_tag)
 
+        # Add top content entities for rich SEO reach
         SCRAPER_BLACKLIST = ("klickpin", "pinterest", "dreamboard", "transformed", "pinid", "pin")
         for e in understanding.entities:
             if any(b in e.lower() for b in SCRAPER_BLACKLIST):
@@ -394,45 +408,20 @@ class SEOMetadataGenerator:
             clean = re.sub(r'[^a-zA-Z0-9]', '', e)
             if clean and 3 <= len(clean) <= 20 and clean.lower() not in [c.lower() for c in clean_hashtags] and clean.lower() != "unstocks":
                 clean_hashtags.append(clean)
-                if len(clean_hashtags) >= 2:
+                if len(clean_hashtags) >= 12:
                     break
 
-        if is_short:
-            preset = getattr(
-                self.config,
-                "default_hashtags",
-                [
-                    "Shorts",
-                    "fyp",
-                    "Business",
-                    "BrandStrategy",
-                    "Marketing",
-                    "Entrepreneurship",
-                    "Startups",
-                    "BusinessStrategy",
-                    "CaseStudy",
-                    "Money",
-                    "ytshorts",
-                    "viral",
-                ],
-            )
-        else:
-            preset = [
-                "Business",
-                "BrandStrategy",
-                "Marketing",
-                "Entrepreneurship",
-                "Startups",
-                "BusinessStrategy",
-                "CaseStudy",
-                "Money",
-            ]
-        for tag in preset:
+        # High-authority business & algorithm SEO battery
+        seo_battery = [
+            "Business", "BrandStrategy", "Marketing", "Entrepreneurship",
+            "Startups", "BusinessStrategy", "CaseStudy", "Money"
+        ]
+        for tag in seo_battery:
             clean_tag = re.sub(r'[^a-zA-Z0-9]', '', tag)
-            if clean_tag and clean_tag.lower() not in [h.lower() for h in clean_hashtags]:
+            if clean_tag and clean_tag.lower() not in [h.lower() for h in clean_hashtags] and len(clean_hashtags) < 16:
                 clean_hashtags.append(clean_tag)
 
-        hashtags = clean_hashtags[:12]
+        hashtags = clean_hashtags
         hashtags_formatted = " ".join([f"#{h}" for h in hashtags])
 
         description_parts = [
@@ -492,9 +481,9 @@ class SEOMetadataGenerator:
             if bat not in tags:
                 tags.append(bat)
 
-        # Format tag for Shorts
+        # Format tag for Shorts and algorithm reach
         if understanding.is_short:
-            for st in ["shorts", "youtube shorts", "business shorts"]:
+            for st in ["shorts", "fyp", "fypage", "ytshorts", "youtube", "yt", "viral", "youtube shorts", "business shorts"]:
                 if st not in tags:
                     tags.append(st)
 

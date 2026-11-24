@@ -47,7 +47,8 @@ class TestSEOMetadataGenerator(unittest.TestCase):
         self.assertIn("Problem Solving", metadata.title)
         self.assertIn("#shorts", metadata.title.lower())
         self.assertIn("#fyp", metadata.title.lower())
-        self.assertTrue(metadata.title.endswith("#fyp"))
+        self.assertIn("#fypage", metadata.title.lower())
+        self.assertTrue(metadata.title.endswith("#fypage"))
         self.assertLessEqual(len(metadata.title), 80)
 
         # Description checks
@@ -108,7 +109,7 @@ class TestSEOMetadataGenerator(unittest.TestCase):
         )
         meta1 = self.generator.generate("batch_01", "c1", "vid1.mp4", u1)
         self.assertLess(len(meta1.title), 80)
-        self.assertTrue(meta1.title.endswith("#fyp"))
+        self.assertTrue(meta1.title.endswith("#fypage"))
         self.assertIn("#shorts", meta1.title.lower())
         self.assertIn("#Backpropagation", meta1.title)
         self.assertNotIn("System Architecture Deep Dive", meta1.title)
@@ -138,7 +139,7 @@ class TestSEOMetadataGenerator(unittest.TestCase):
         )
         meta3 = self.generator.generate("batch_01", "c3", "vid3.mp4", u3)
         self.assertLess(len(meta3.title), 80)
-        self.assertTrue(meta3.title.endswith("#fyp"))
+        self.assertTrue(meta3.title.endswith("#fypage"))
         self.assertIn("#shorts", meta3.title.lower())
 
     def test_description_and_tags_contain_actual_entities_no_boilerplate(self):
@@ -169,8 +170,11 @@ class TestSEOMetadataGenerator(unittest.TestCase):
         self.assertIn("PostgreSQL", metadata.hashtags)
         self.assertNotIn("SoftwareEngineering", metadata.hashtags)
         self.assertNotIn("SystemDesign", metadata.hashtags)
-        self.assertIn("Shorts", metadata.hashtags)
+        self.assertTrue(any(h.lower() == "shorts" for h in metadata.hashtags))
         self.assertIn("fyp", metadata.hashtags)
+        self.assertIn("fypage", metadata.hashtags)
+        self.assertIn("ytshorts", metadata.hashtags)
+        self.assertIn("viral", metadata.hashtags)
 
         # Tags assertions
         total_tag_chars = sum(len(t) for t in metadata.tags)
