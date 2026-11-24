@@ -154,15 +154,20 @@ def cmd_retry(args: argparse.Namespace, config: YTManagerConfig) -> int:
     orchestrator = WorkflowOrchestrator(config, mock_mode=mock_mode)
     print("\n[YT Manager] Retrying incomplete/failed daily uploads...")
 
-    # Query database for incomplete/failed clips
+    # Query database for incomplete/failed daily batch clips
     with orchestrator.state._get_connection() as conn:
         cursor = conn.execute(
-            "SELECT * FROM clips WHERE status NOT IN ('VERIFIED', 'UPLOADED') ORDER BY created_at DESC LIMIT 2"
+            """
+            SELECT * FROM clips 
+            WHERE status NOT IN ('VERIFIED', 'UPLOADED', 'ARCHIVED') 
+              AND batch_id LIKE 'batch_%'
+            ORDER BY created_at DESC LIMIT 2
+            """
         )
         failed_clips = [dict(r) for r in cursor.fetchall()]
 
     if not failed_clips:
-        print("[Retry] No failed clips requiring retry. System state is clean.")
+        print("[Retry] No failed daily clips requiring retry. Today's batch is fully verified on YouTube.")
         return 0
 
     print(f"[Retry] Found {len(failed_clips)} clip(s) to retry:")
@@ -201,6 +206,11 @@ def cmd_retry(args: argparse.Namespace, config: YTManagerConfig) -> int:
         )
         if res.upload_status == "SUCCESS":
             recovered += 1
+
+            # Finalize parent batch status if all clips are now verified
+            all_batch_clips = orchestrator.state.get_clips_for_batch(batch_id)
+            if all_batch_clips and all(bc["status"] in ("VERIFIED", "UPLOADED") for bc in all_batch_clips):
+                orchestrator.state.update_batch_status(batch_id, status="COMPLETED")
 
     print(f"\n[Retry] Completed: {recovered}/{len(failed_clips)} clip(s) recovered and verified on YouTube.")
     return 0 if recovered == len(failed_clips) else 1
